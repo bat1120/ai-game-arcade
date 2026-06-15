@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Cookie Forge Idle</title>
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#120f14; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const SAVE_KEY = 'cookie_forge_idle_save_v1';
+  const state = {
+    cookies: 0,
+    totalCookies: 0,
+    totalClicks: 0,
+    clickPower: 1,
+    globalMult: 1,
+    paused: false,
+    lastT: performance.now(),
+    popup: '',
+    popupTimer: 0,
+    autosaveTimer: 0,
+    units: [
+      { name:'Cursor Chef', baseCost: 15, costMult: 1.15, cps: 0.1, count: 0 },
+      { name:'Grandma Oven', baseCost: 100, costMult: 1.15, cps: 1, count: 0 },
+      { name:'Bakery', baseCost: 1100, costMult: 1.17, cps: 8, count: 0 },
+      { name:'Factory', baseCost: 12000, costMult: 1.18, cps: 47, count: 0 },
+      { name:'Cookie Mine', baseCost: 130000, costMult: 1.2, cps: 260, count: 0 },
+      { name:'Quantum Mixer', baseCost: 1500000, costMult: 1.22, cps: 1800, count: 0 }
+    ],
+    upgrades: [
+      { name:'Reinforced Gloves', desc:'+1 click power', cost: 50, type:'click', bought:false, mult:1 },
+      { name:'Sugar Rush', desc:'Click power x2', cost: 500, type:'clickMult', bought:false, mult:2 },
+      { name:'Oven Polish', desc:'Global production x2', cost: 5000, type:'globalMult', bought:false, mult:2 },
+      { name:'Golden Syrup', desc:'Global production x3', cost: 50000, type:'globalMult', bought:false, mult:3 },
+      { name:'Hyper Knead', desc:'Click power +5', cost: 250000, type:'click', bought:false, mult:5 }
+    ]
+  };
+
+  const UI = {
+    buttons: [],
+    clickArea: null,
+    saveBtn: null,
+    loadBtn: null,
+    resetBtn: null,
+    pauseBtn: null
+  };
+
+  function resize() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    layout();
+  }
+
+  function fmt(n) {
+    if (!isFinite(n)) return '∞';
+    const abs = Math.abs(n);
+    if (abs < 1000) return (Math.round(n * 100) / 100).toString();
+    const units = ['K','M','B','T','Qa','Qi','Sx','Sp','Oc','No'];
+    let u = -1;
+    let x = n;
+    while (Math.abs(x) >= 1000 && u < units.length - 1) { x /= 1000; u++; }
+    return x.toFixed(x >= 100 ? 0 : x >= 10 ? 1 : 2) + units[u];
+  }
+
+  function getCPS() {
+    let cps = 0;
+    for (const u of state.units) cps += u.cps * u.count;
+    return cps * state.globalMult;
+  }
+
+  function purchaseCost(base, mult, count) {
+    return base * Math.pow(mult, count);
+  }
+
+  function canAfford(cost) { return state.cookies >= cost - 1e-9; }
+
+  function spend(cost) {
+    if (!canAfford(cost)) return false;
+    state.cookies -= cost;
+    return true;
+  }
+
+  function setPopup(text) {
+    state.popup = text;
+    state.popupTimer = 1.5;
+  }
+
+  function buyUnit(i) {
+    const u = state.units[i];
+    const cost = purchaseCost(u.baseCost, u.costMult, u.count);
+    if (!spend(cost)) return;
+    u.count++;
+    setPopup(`${u.name} 구매!`);
+  }
+
+  function buyUpgrade(i) {
+    const up = state.upgrades[i];
+    if (up.bought || !spend(up.cost)) return;
+    up.bought = true;
+    if (up.type === 'click') state.clickPower += up.mult;
+    if (up.type === 'clickMult') state.clickPower *= up.mult;
+    if (up.type === 'globalMult') state.globalMult *= up.mult;
+    setPopup(`${up.name} 업그레이드 완료!`);
+  }
+
+  function clickCookie() {
+    const gain = state.clickPower * state.globalMult;
+    state.cookies += gain;
+    state.totalCookies += gain;
+    state.totalClicks++;
+    burst();
+  }
+
+  const particles = [];
+  function burst() {
+    const cx = UI.clickArea.x + UI.clickArea.w/2;
+    const cy = UI.clickArea.y + UI.clickArea.h/2;
+    for (let i=0;i<16;i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 80 + Math.random()*220;
+      particles.push({
+        x: cx, y: cy, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 40,
+        life: 0.6 + Math.random()*0.4
+      });
+    }
+  }
+
+  function saveGame() {
+    const data = {
+      cookies: state.cookies,
+      totalCookies: state.totalCookies,
+      totalClicks: state.totalClicks,
+      clickPower: state.clickPower,
+      globalMult: state.globalMult,
+      units: state.units.map(u => u.count),
+      upgrades: state.upgrades.map(u => !!u.bought),
+      t: Date.now()
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    setPopup('저장 완료');
+  }
+
+  function loadGame(showMsg=true) {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) { if (showMsg) setPopup('저장 데이터 없음'); return; }
+    try {
+      const data = JSON.parse(raw);
+      state.cookies = data.cookies || 0;
+      state.totalCookies = data.totalCookies || 0;
+      state.totalClicks = data.totalClicks || 0;
+      state.clickPower = data.clickPower || 1;
+      state.globalMult = data.globalMult || 1;
+      if (Array.isArray(data.units)) data.units.forEach((c,i)=>{ if(state.units[i]) state.units[i].count = c|0; });
+      if (Array.isArray(data.upgrades)) data.upgrades.forEach((b,i)=>{ if(state.upgrades[i]) state.upgrades[i].bought = !!b; });
+      if (showMsg) setPopup('불러오기 완료');
+    } catch(e) { if (showMsg) setPopup('불러오기 실패'); }
+  }
+
+  function resetGame() {
+    if (!confirm('정말 초기화할까요?')) return;
+    localStorage.removeItem(SAVE_KEY);
+    state.cookies = 0;
+    state.totalCookies = 0;
+    state.totalClicks = 0;
+    state.clickPower = 1;
+    state.globalMult = 1;
+    state.units.forEach(u => u.count = 0);
+    state.upgrades.forEach(u => u.bought = false);
+    setPopup('초기화 완료');
+  }
+
+  function layout() {
+    const W = innerWidth, H = innerHeight;
+    UI.buttons = [];
+    const topH = 86;
+    const sideW = Math.max(300, Math.min(420, W * 0.34));
+    const pad = 16;
+    const centerX = W * 0.38;
+    const centerY = H * 0.52;
+    const size = Math.min(Math.min(W - sideW - 60, H - 180), 420);
+    UI.clickArea = { x:centerX - size/2, y:centerY - size/2, w:size, h:size };
+
+    const btnY = 18;
+    const bw = 92, bh = 30, gap = 10;
+    UI.saveBtn = { x: W - (bw*4 + gap*3) - pad, y: btnY, w:bw, h:bh, text:'저장' };
+    UI.loadBtn = { x: W - (bw*3 + gap*2) - pad, y: btnY, w:bw, h:bh, text:'불러오기' };
+    UI.pauseBtn = { x: W - (bw*2 + gap*1) - pad, y: btnY, w:bw, h:bh, text: state.paused ? '재개' : '일시정지' };
+    UI.resetBtn = { x: W - (bw*1) - pad, y: btnY, w:bw, h:bh, text:'초기화' };
+
+    const listX = Math.max(centerX + size/2 + 24, W - sideW + 12);
+    let y = 70;
+    const cardW = W - listX - 18;
+    const cardH = 64;
+    const list = [];
+    for (let i=0;i<state.units.length;i++) {
+      list.push({ kind:'unit', index:i, x:listX, y, w:cardW, h:cardH });
+      y += cardH + 10;
+    }
+    y += 10;
+    for (let i=0;i<state.upgrades.length;i++) {
+      list.push({ kind:'upgrade', index:i, x:listX, y, w:cardW, h:cardH });
+      y += cardH + 10;
+    }
+    UI.buttons = list;
+  }
+
+  function inRect(mx,my,r){ return mx>=r.x && mx<=r.x+r.w && my>=r.y && my<=r.y+r.h; }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    if (inRect(x,y,UI.clickArea)) { clickCookie(); return; }
+    for (const b of [UI.saveBtn, UI.loadBtn, UI.pauseBtn, UI.resetBtn]) {
+      if (b && inRect(x,y,b)) {
+        if (b===UI.saveBtn) saveGame();
+        else if (b===UI.loadBtn) loadGame();
+        else if (b===UI.pauseBtn) { state.paused = !state.paused; layout(); }
+        else if (b===UI.resetBtn) resetGame();
+        return;
+      }
+    }
+    for (const b of UI.buttons) {
+      if (inRect(x,y,b)) {
+        if (b.kind === 'unit') buyUnit(b.index);
+        else buyUpgrade(b.index);
+        return;
+      }
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' || e.key === 'P') { state.paused = !state.paused; layout(); }
+    if (e.key === 's' || e.key === 'S') saveGame();
+    if (e.key === 'l' || e.key === 'L') loadGame();
+    if (e.key === 'r' || e.key === 'R') resetGame();
+    if (e.key === ' ' || e.key === 'Enter') clickCookie();
+  });
+
+  function drawRoundedRect(x,y,w,h,r, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+
+  function render(dt) {
+    const W = innerWidth, H = innerHeight;
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#1a1320');
+    bg.addColorStop(1,'#0f0c12');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,W,H);
+
+    const g = ctx.createRadialGradient(W*0.36,H*0.48,40,W*0.36,H*0.48,Math.max(W,H)*0.7);
+    g.addColorStop(0,'rgba(255,210,140,0.08)');
+    g.addColorStop(1,'rgba(255,210,140,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    const cps = getCPS();
+
+    // top HUD
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 26px system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText(`쿠키: ${fmt(state.cookies)}`, 20, 38);
+    ctx.font = '600 18px system-ui';
+    ctx.fillStyle = '#f4d08b';
+    ctx.fillText(`초당 생산: ${fmt(cps)}/s`, 20, 64);
+    ctx.fillStyle = '#d6d0ff';
+    ctx.fillText(`클릭당 획득: ${fmt(state.clickPower * state.globalMult)}`, 280, 64);
+    ctx.fillStyle = '#b7ffcf';
+    ctx.fillText(`누적 쿠키: ${fmt(state.totalCookies)}`, 480, 64);
+
+    // buttons top-right
+    const topButtons = [UI.saveBtn, UI.loadBtn, UI.pauseBtn, UI.resetBtn];
+    for (const b of topButtons) {
+      drawRoundedRect(b.x,b.y,b.w,b.h,10,'#2a2230', canAfford(0) ? '#55465f' : '#55465f');
+      ctx.fillStyle = '#fff';
+      ctx.font = '600 14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(b.text, b.x+b.w/2, b.y+19);
+    }
+
+    // center cookie
+    const c = UI.clickArea;
+    const hover = false;
+    drawRoundedRect(c.x,c.y,c.w,c.h,c.w*0.25,'#2c1b14','#7a4b35');
+    const rg = ctx.createRadialGradient(c.x+c.w*0.38,c.y+c.h*0.35,10,c.x+c.w/2,c.y+c.h/2,c.w*0.6);
+    rg.addColorStop(0,'#d38c4e');
+    rg.addColorStop(0.6,'#9a5a2c');
+    rg.addColorStop(1,'#5d3217');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.arc(c.x+c.w/2,c.y+c.h/2,c.w*0.34,0,Math.PI*2);
+    ctx.fill();
+    for (let i=0;i<10;i++) {
+      const a = i * 0.61 + Math.sin(performance.now()*0.001+i)*0.15;
+      const rx = c.x+c.w/2 + Math.cos(a)*(c.w*0.18);
+      const ry = c.y+c.h/2 + Math.sin(a)*(c.h*0.18);
+      ctx.fillStyle = '#2b160d';
+      ctx.beginPath();
+      ctx.arc(rx,ry,Math.max(5,c.w*0.025),0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#fff9';
+    ctx.font = '800 30px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('COOKIE', c.x+c.w/2, c.y+c.h/2 - 12);
+    ctx.font = '700 16px system-ui';
+    ctx.fillText('클릭하세요!', c.x+c.w/2, c.y+c.h/2 + 16);
+
+    // side panel
+    const panelX = Math.max(c.x + c.w/2 + 24, W - 390);
+    const panelY = 70;
+    drawRoundedRect(panelX-12, 58, W-panelX-6, H-78, 18, 'rgba(20,16,24,0.75)', '#3d3143');
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 18px system-ui';
+    ctx.fillText('상점', panelX, 82);
+
+    let y = 104;
+    for (let i=0;i<state.units.length;i++) {
+      const u = state.units[i];
+      const cost = purchaseCost(u.baseCost, u.costMult, u.count);
+      const affordable = canAfford(cost);
+      const bx = panelX, by = y, bw = W - panelX - 20, bh = 64;
+      drawRoundedRect(bx,by,bw,bh,14, affordable ? 'rgba(55,85,60,0.95)' : 'rgba(45,35,50,0.95)', affordable ? '#89d69a' : '#5b4b63');
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 16px system-ui';
+      ctx.fillText(`${u.name} x${u.count}`, bx+14, by+22);
+      ctx.font = '600 13px system-ui';
+      ctx.fillStyle = '#e8d7ff';
+      ctx.fillText(`+${fmt(u.cps * state.globalMult)}/s`, bx+14, by+42);
+      ctx.fillStyle = '#ffd98b';
+      ctx.textAlign = 'right';
+      ctx.fillText(`가격 ${fmt(cost)}`, bx+bw-14, by+22);
+      ctx.fillStyle = '#cdd0d5';
+      ctx.fillText(`보유 시 총 ${fmt(u.cps*u.count*state.globalMult)}/s`, bx+bw-14, by+42);
+      ctx.textAlign = 'left';
+      y += bh + 10;
+    }
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 18px system-ui';
+    ctx.fillText('업그레이드', panelX, y + 18);
+    y += 30;
+
+    for (let i=0;i<state.upgrades.length;i++) {
+      const up = state.upgrades[i];
+      const affordable = canAfford(up.cost);
+      const active = !up.bought;
+      const bx = panelX, by = y, bw = W - panelX - 20, bh = 64;
+      drawRoundedRect(bx,by,bw,bh,14, up.bought ? 'rgba(45,45,45,0.92)' : (affordable ? 'rgba(74,56,24,0.96)' : 'rgba(45,35,50,0.95)'), up.bought ? '#666' : (affordable ? '#f0c35a' : '#5b4b63'));
+      ctx.fillStyle = up.bought ? '#93ffb0' : '#fff';
+      ctx.font = '700 16px system-ui';
+      ctx.fillText(`${up.name}${up.bought ? ' (구매됨)' : ''}`, bx+14, by+22);
+      ctx.font = '600 13px system-ui';
+      ctx.fillStyle = '#e7e0ff';
+      ctx.fillText(up.desc, bx+14, by+42);
+      ctx.fillStyle = '#ffd98b';
+      ctx.textAlign = 'right';
+      ctx.fillText(up.bought ? '완료' : `가격 ${fmt(up.cost)}`, bx+bw-14, by+22);
+      ctx.textAlign = 'left';
+      y += bh + 10;
+    }
+
+    // footer stats
+    ctx.fillStyle = '#fff';
+    ctx.font = '600 16px system-ui';
+    ctx.fillText(`총 클릭 수: ${fmt(state.totalClicks)}`, 20, H - 62);
+    ctx.fillText(`전체 배수: x${fmt(state.globalMult)}`, 20, H - 38);
+
+    ctx.font = '600 14px system-ui';
+    ctx.fillStyle = '#d7d0de';
+    ctx.fillText('조작: 클릭/터치로 쿠키 획득 | P 일시정지 | S 저장 | L 불러오기 | R 초기화 | Space/Enter 클릭', 20, H - 14);
+
+    if (state.popupTimer > 0) {
+      ctx.globalAlpha = Math.min(1, state.popupTimer);
+      drawRoundedRect(W/2 - 120, 18, 240, 36, 12, 'rgba(0,0,0,0.55)', '#826c93');
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.font = '700 15px system-ui';
+      ctx.fillText(state.popup, W/2, 41);
+      ctx.globalAlpha = 1;
+    }
+
+    if (state.paused) {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.font = '800 42px system-ui';
+      ctx.fillText('일시정지', W/2, H/2 - 10);
+      ctx.font = '600 18px system-ui';
+      ctx.fillText('P를 누르거나 상단 버튼으로 재개', W/2, H/2 + 24);
+    }
+
+    // particles
+    ctx.fillStyle = '#ffd98b';
+    for (let i=particles.length-1;i>=0;i--) {
+      const p = particles[i];
+      p.life -= dt;
+      p.vy += 260 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,3,0,Math.PI*2);
+      ctx.fill();
+      if (p.life <= 0) particles.splice(i,1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function update(t) {
+    const dt = Math.min(0.033, (t - state.lastT) / 1000);
+    state.lastT = t;
+    if (!state.paused) {
+      const cps = getCPS();
+      const gain = cps * dt;
+      state.cookies += gain;
+      state.totalCookies += gain;
+    }
+    state.popupTimer = Math.max(0, state.popupTimer - dt);
+    state.autosaveTimer += dt;
+    if (state.autosaveTimer > 20) { state.autosaveTimer = 0; saveGame(); }
+    render(dt);
+    requestAnimationFrame(update);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  loadGame(false);
+  setPopup('쿠키 공장 가동!');
+  requestAnimationFrame((t)=>{ state.lastT = t; requestAnimationFrame(update); });
+})();
+</script>
+</body>
+</html>
