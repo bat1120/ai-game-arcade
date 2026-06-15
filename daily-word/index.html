@@ -1,242 +1,161 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Mini Word Guess</title>
-<style>
-  :root{
-    --bg:#0f1220;
-    --panel:#171b2e;
-    --panel2:#202646;
-    --text:#f2f5ff;
-    --muted:#9aa3c7;
-    --grid:#30385f;
-    --empty:#1a1f36;
-    --correct:#3bb273;
-    --present:#d9b44a;
-    --absent:#4b567f;
-    --accent:#7b8cff;
-    --danger:#ff6b6b;
-    --shadow: 0 12px 30px rgba(0,0,0,.35);
-  }
-  html,body{
-    margin:0;
-    width:100%;
-    height:100%;
-    background: radial-gradient(1200px 800px at 50% 20%, #1a2140 0%, var(--bg) 55%, #090b14 100%);
-    color:var(--text);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    overflow:hidden;
-    touch-action: manipulation;
-  }
-  #game{
-    display:block;
-    width:100vw;
-    height:100vh;
-  }
-  .ui{
-    position:fixed;
-    inset:0;
-    pointer-events:none;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:space-between;
-    padding:12px;
-    box-sizing:border-box;
-  }
-  .topbar{
-    width:min(720px, 96vw);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:12px;
-    pointer-events:auto;
-  }
-  .title{
-    font-weight:800;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    font-size:14px;
-    color:#dbe2ff;
-    opacity:.95;
-  }
-  .stats{
-    display:flex;
-    gap:10px;
-    align-items:center;
-    font-size:13px;
-    color:var(--muted);
-  }
-  .chip{
-    background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:999px;
-    padding:7px 10px;
-    box-shadow: var(--shadow);
-    user-select:none;
-  }
-  .centerPanel{
-    width:min(720px, 96vw);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-    pointer-events:none;
-    margin-top:2vh;
-  }
-  .message{
-    min-height:28px;
-    padding:8px 14px;
-    border-radius:12px;
-    background:rgba(255,255,255,.06);
-    border:1px solid rgba(255,255,255,.08);
-    color:#eef2ff;
-    font-size:14px;
-    text-align:center;
-    box-shadow: var(--shadow);
-    backdrop-filter: blur(8px);
-  }
-  .boardWrap{
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    pointer-events:none;
-    flex:1;
-    width:100%;
-  }
-  .board{
-    display:grid;
-    grid-template-rows:repeat(6, 1fr);
-    gap:10px;
-    padding:10px;
-    border-radius:20px;
-    background:rgba(255,255,255,.03);
-    border:1px solid rgba(255,255,255,.06);
-    box-shadow: var(--shadow);
-  }
-  .row{
-    display:grid;
-    grid-template-columns:repeat(5, 1fr);
-    gap:10px;
-  }
-  .tile{
-    width:clamp(48px, 9vw, 64px);
-    height:clamp(48px, 9vw, 64px);
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-weight:800;
-    font-size:clamp(22px, 4vw, 30px);
-    text-transform:uppercase;
-    background:var(--empty);
-    border:2px solid var(--grid);
-    box-sizing:border-box;
-    color:var(--text);
-    user-select:none;
-    transition:transform .08s ease, background .18s ease, border-color .18s ease;
-  }
-  .tile.filled{ border-color:#52608f; }
-  .tile.pop{ transform:scale(1.06); }
-  .tile.correct{ background:var(--correct); border-color:var(--correct); }
-  .tile.present{ background:var(--present); border-color:var(--present); }
-  .tile.absent{ background:var(--absent); border-color:var(--absent); }
-  .tile.shake{ animation: shake .28s ease; }
-  @keyframes shake{
-    0%,100%{ transform:translateX(0); }
-    20%{ transform:translateX(-6px); }
-    40%{ transform:translateX(6px); }
-    60%{ transform:translateX(-4px); }
-    80%{ transform:translateX(4px); }
-  }
-  .keyboard{
-    width:min(720px, 98vw);
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    pointer-events:auto;
-    margin-bottom:6px;
-  }
-  .keyrow{
-    display:flex;
-    gap:6px;
-    justify-content:center;
-  }
-  .key{
-    min-width:clamp(26px, 7vw, 44px);
-    height:clamp(44px, 7.5vw, 58px);
-    padding:0 8px;
-    border:none;
-    border-radius:10px;
-    background:#dfe4ff;
-    color:#11172b;
-    font-weight:800;
-    font-size:clamp(12px, 2.7vw, 15px);
-    cursor:pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,.25);
-    user-select:none;
-  }
-  .key.wide{ min-width:clamp(56px, 12vw, 82px); }
-  .key:active{ transform:translateY(1px); }
-  .key.correct{ background:var(--correct); color:white; }
-  .key.present{ background:var(--present); color:#1b1400; }
-  .key.absent{ background:var(--absent); color:white; }
-  .footer{
-    width:min(720px, 96vw);
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:10px;
-    pointer-events:none;
-    color:var(--muted);
-    font-size:12px;
-    margin-bottom:8px;
-  }
-  .btn{
-    pointer-events:auto;
-    border:none;
-    border-radius:10px;
-    padding:10px 12px;
-    background:rgba(255,255,255,.08);
-    color:var(--text);
-    cursor:pointer;
-    font-weight:700;
-  }
-  .btn:hover{ background:rgba(255,255,255,.12); }
-  .hidden{ display:none !important; }
-  @media (max-width:520px){
-    .stats{ display:none; }
-    .topbar{ justify-content:center; }
-    .footer{ flex-direction:column; align-items:center; text-align:center; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>워드러시: 제한시간 스프린트</title>
+  <style>
+    html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#07101f; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+    .ui { position:fixed; inset:0; pointer-events:none; color:#eaf2ff; text-shadow:0 2px 10px rgba(0,0,0,.45); user-select:none; }
+    .topbar {
+      position:absolute; left:0; right:0; top:0; display:grid; grid-template-columns:1fr auto 1fr; gap:10px;
+      padding:10px; box-sizing:border-box; align-items:start;
+    }
+    .panel {
+      pointer-events:none;
+      background:rgba(10,18,34,.64); backdrop-filter: blur(8px);
+      border:1px solid rgba(145,178,255,.18); border-radius:16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.22);
+    }
+    .stats, .rightstats, .status { padding:10px 12px; font-size:14px; line-height:1.3; }
+    .stats b, .rightstats b, .status b { color:#fff; }
+    .stats { min-width:240px; }
+    .rightstats { min-width:260px; text-align:right; }
+    .status { min-width:220px; text-align:center; font-weight:700; }
+    .status.play { color:#8dffbc; }
+    .status.menu { color:#ffd77b; }
+    .status.over { color:#ff8da0; }
+
+    .centerbox {
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(840px, calc(100vw - 24px)); pointer-events:auto;
+    }
+    .card {
+      padding:18px 18px 16px; border-radius:22px; background:rgba(8,13,24,.84);
+      border:1px solid rgba(148,177,255,.18); box-shadow:0 26px 80px rgba(0,0,0,.38);
+      position:relative; overflow:hidden;
+    }
+    .card::before {
+      content:""; position:absolute; inset:-2px;
+      background:radial-gradient(circle at 30% 20%, rgba(99,142,255,.12), transparent 36%),
+                 radial-gradient(circle at 70% 20%, rgba(255,214,120,.10), transparent 34%),
+                 radial-gradient(circle at 50% 100%, rgba(95,255,180,.08), transparent 40%);
+      pointer-events:none;
+    }
+    .title { position:relative; font-size:32px; font-weight:900; letter-spacing:.4px; margin-bottom:8px; }
+    .sub { position:relative; color:#cbd8ff; font-size:14px; line-height:1.56; }
+    .meter {
+      position:relative; margin-top:12px; display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+      padding:10px 12px; border-radius:16px; background:rgba(120,150,255,.08); border:1px solid rgba(145,178,255,.16);
+    }
+    .bar {
+      height:14px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; border:1px solid rgba(255,255,255,.08);
+    }
+    .fill { height:100%; width:50%; border-radius:999px; background:linear-gradient(90deg,#4d7cff,#7fffb1); box-shadow:0 0 18px rgba(79,124,255,.35); transition:width .15s linear; }
+    .bar2 { margin-top:8px; height:10px; }
+    .bar2 .fill { background:linear-gradient(90deg,#ffd77b,#ff8da0); box-shadow:0 0 18px rgba(255,215,123,.28); }
+
+    .hintline { position:relative; margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; font-size:13px; color:#d7e5ff; }
+    .pill { padding:6px 10px; border-radius:999px; background:rgba(120,150,255,.12); border:1px solid rgba(145,178,255,.18); }
+    .buttons { position:relative; margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; }
+    button {
+      pointer-events:auto; cursor:pointer; border:none; color:#fff; font-weight:800;
+      padding:11px 14px; border-radius:14px; background:linear-gradient(180deg,#4d7cff,#3157df);
+      box-shadow:0 10px 22px rgba(49,87,223,.28);
+    }
+    button.secondary { background:linear-gradient(180deg,#27314f,#1e2640); box-shadow:none; border:1px solid rgba(145,178,255,.18); }
+    button:active { transform:translateY(1px); }
+    button.good { background:linear-gradient(180deg,#25c77f,#1b9960); box-shadow:0 10px 22px rgba(37,199,127,.18); }
+    .inputrow { position:relative; margin-top:14px; display:flex; gap:10px; flex-wrap:wrap; }
+    input {
+      pointer-events:auto; flex:1; min-width:220px; border-radius:14px; border:1px solid rgba(145,178,255,.2);
+      background:rgba(255,255,255,.07); color:#fff; outline:none; padding:12px 14px; font-size:18px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+    }
+    input::placeholder { color:#96a8d8; }
+    .bottomhelp {
+      position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+      padding:10px 14px; max-width:min(980px, calc(100vw - 18px)); text-align:center;
+      font-size:13px; color:#d5e2ff; background:rgba(12,18,34,.48);
+    }
+    .toast {
+      position:absolute; left:50%; top:16%; transform:translateX(-50%) scale(.98);
+      padding:10px 14px; border-radius:999px; background:rgba(17,26,46,.88);
+      border:1px solid rgba(145,178,255,.18); font-weight:800; opacity:0; transition:opacity .16s, transform .16s;
+      white-space:nowrap;
+    }
+    .toast.show { opacity:1; transform:translateX(-50%) scale(1); }
+    .small { font-size:12px; opacity:.92; }
+    .goodtxt { color:#8dffbc; }
+    .badtxt { color:#ff8da0; }
+    .gold { color:#ffd77b; }
+    .list { position:relative; margin-top:10px; display:flex; flex-wrap:wrap; gap:8px; font-size:12px; }
+    .tag { padding:6px 9px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(145,178,255,.14); }
+    .hidden { display:none !important; }
+  </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <div class="ui">
   <div class="topbar">
-    <div class="title">Word Guess 5</div>
-    <div class="stats">
-      <div class="chip" id="streakChip">Streak: 0</div>
-      <div class="chip" id="seedChip">6 tries</div>
-    </div>
-    <button class="btn" id="restartBtn">Restart</button>
+    <div class="panel stats" id="stats"></div>
+    <div class="panel status" id="status"></div>
+    <div class="panel rightstats" id="rightstats"></div>
   </div>
 
-  <div class="centerPanel">
-    <div class="message" id="message">Guess the 5-letter word. Press Enter to submit.</div>
-    <div class="boardWrap">
-      <div class="board" id="board"></div>
+  <div class="centerbox" id="overlay">
+    <div class="card">
+      <div class="title">워드러시: 제한시간 스프린트</div>
+      <div class="sub" id="headline">
+        빠르게 영어 단어를 입력해 점수를 쌓으세요. <b>5글자 이상, 알파벳만</b>이면 즉시 정답으로 인정됩니다.
+        긴 단어일수록 점수가 커지고, 연속 정답 콤보가 올라갈수록 배수가 상승합니다. 정답마다 시간이 추가되지만, 시간이 지날수록 압박도 커집니다.
+      </div>
+
+      <div class="meter">
+        <div>
+          <div class="small">시간 압박</div>
+          <div class="bar"><div class="fill" id="timePressureFill"></div></div>
+          <div class="bar bar2"><div class="fill" id="comboFill"></div></div>
+        </div>
+        <div style="text-align:right; min-width:124px;">
+          <div class="small">단계 <b id="stageLabel">1</b></div>
+          <div class="small">난이도 <b id="difficultyLabel">0.0</b></div>
+        </div>
+      </div>
+
+      <div class="hintline">
+        <div class="pill">Enter: 제출</div>
+        <div class="pill">Space: 글자 재배치</div>
+        <div class="pill">1: 힌트 토큰</div>
+        <div class="pill">2: 시간 +</div>
+        <div class="pill">3: 점수 배수</div>
+        <div class="pill">R / 버튼: 재시작</div>
+      </div>
+
+      <div class="inputrow">
+        <input id="wordInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="예: crane, slate, house, magnetic..." />
+        <button id="startBtn" class="good">Start</button>
+        <button id="restartBtn" class="secondary">재시작</button>
+      </div>
+
+      <div class="buttons">
+        <button id="hintBtn" class="secondary">힌트 토큰 사용</button>
+        <button id="timeBtn" class="secondary">시간 추가 사용</button>
+        <button id="multBtn" class="secondary">점수배수 사용</button>
+      </div>
+
+      <div class="list" id="powerList"></div>
+
+      <div class="sub small" style="margin-top:10px;">
+        형식 검증만 사용합니다. 사전 목록이 없더라도 <b>알파벳 5글자 이상</b>이면 유효한 단어로 처리됩니다. 정답이 입력되면 점수·콤보·시간·파워업 상태가 즉시 변화합니다.
+      </div>
     </div>
   </div>
 
-  <div class="keyboard" id="keyboard"></div>
-
-  <div class="footer">
-    <div>Controls: Type letters · Backspace delete · Enter submit · Restart button / R key</div>
-    <div id="resultText"></div>
+  <div class="toast" id="toast">+100</div>
+  <div class="panel bottomhelp" id="help">
+    시작 버튼을 눌러 플레이를 시작하세요. 먼저 쉬운 단어로 콤보를 올린 뒤, 긴 단어와 파워업으로 점수를 폭발시키세요.
   </div>
 </div>
 
@@ -244,208 +163,444 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const boardEl = document.getElementById('board');
-  const keyboardEl = document.getElementById('keyboard');
-  const messageEl = document.getElementById('message');
-  const resultText = document.getElementById('resultText');
-  const streakChip = document.getElementById('streakChip');
+  const statsEl = document.getElementById('stats');
+  const rightEl = document.getElementById('rightstats');
+  const statusEl = document.getElementById('status');
+  const overlay = document.getElementById('overlay');
+  const input = document.getElementById('wordInput');
+  const toast = document.getElementById('toast');
+  const startBtn = document.getElementById('startBtn');
   const restartBtn = document.getElementById('restartBtn');
+  const hintBtn = document.getElementById('hintBtn');
+  const timeBtn = document.getElementById('timeBtn');
+  const multBtn = document.getElementById('multBtn');
+  const helpEl = document.getElementById('help');
+  const stageLabel = document.getElementById('stageLabel');
+  const difficultyLabel = document.getElementById('difficultyLabel');
+  const timePressureFill = document.getElementById('timePressureFill');
+  const comboFill = document.getElementById('comboFill');
+  const powerList = document.getElementById('powerList');
 
-  const WORDS = ["APPLE","BRAVE","CHARM","DREAM","EAGLE","FLAME","GRACE","HONEY","IRONY","JOKER","KNIFE","LIGHT","MIGHT","NOBLE","OCEAN","PRIDE","QUART","ROBIN","SHEEP","TIGER","UNION","VIVID","WATER","YEARN","ZEBRA","STONE","PLANT","CROWN","SHARE","MUSIC","GHOST","PLUMB","CIDER","BLAST","FRAME","TRAIL","SPARK","GLASS","BRINK","CLOAK","DAISY","FROST","GREEN","HUMAN","INDEX","LUNAR","METAL","NORTH","OPERA","PILOT","RIVER","SOLAR","THORN","ULTRA","VOTER","WOMAN","XENON","YOUTH","ZONED"];
-  const answer = WORDS[Math.floor(Math.random() * WORDS.length)];
-  let row = 0, col = 0, gameOver = false, streak = 0;
-  const guesses = Array.from({length: 6}, () => Array(5).fill(''));
-  const states = Array.from({length: 6}, () => Array(5).fill(''));
-  const boardTiles = [];
-  const keyButtons = new Map();
+  let W=0,H=0,DPR=1;
+  function resize(){ DPR=Math.min(2, window.devicePixelRatio||1); W=canvas.width=Math.floor(innerWidth*DPR); H=canvas.height=Math.floor(innerHeight*DPR); canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px'; }
+  addEventListener('resize', resize); resize();
 
-  function resize() {
-    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    canvas.width = Math.floor(innerWidth * dpr);
-    canvas.height = Math.floor(innerHeight * dpr);
-    canvas.style.width = innerWidth + 'px';
-    canvas.style.height = innerHeight + 'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  window.addEventListener('resize', resize);
+  const state = {
+    mode:'menu',
+    time:48,
+    score:0,
+    best: +(localStorage.getItem('wordrush_best_v2')||0),
+    combo:0,
+    mult:1,
+    comboPeak:0,
+    wordCount:0,
+    difficulty:0,
+    stage:1,
+    generatedAt:0,
+    letters:[],
+    targetHint:'',
+    power:{hint:2,time:1,mult:1},
+    particles:[],
+    popups:[],
+    stars:[],
+    flash:0,
+    shake:0,
+    resultLine:'',
+    resultT:0,
+    lastSubmitOk:false,
+    lastWord:'',
+    difficultyPulse:0
+  };
 
-  function makeBoard() {
-    boardEl.innerHTML = '';
-    boardTiles.length = 0;
-    for (let r=0; r<6; r++) {
-      const rowEl = document.createElement('div');
-      rowEl.className = 'row';
-      const rr = [];
-      for (let c=0; c<5; c++) {
-        const t = document.createElement('div');
-        t.className = 'tile';
-        rowEl.appendChild(t);
-        rr.push(t);
-      }
-      boardEl.appendChild(rowEl);
-      boardTiles.push(rr);
-    }
-  }
+  for(let i=0;i<130;i++) state.stars.push({x:Math.random(), y:Math.random(), s:0.25+Math.random()*1.6, a:Math.random()*Math.PI*2, v:0.4+Math.random()*1.2});
+  function rand(n){ return Math.random()*n; }
+  function pick(arr){ return arr[(Math.random()*arr.length)|0]; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
-  const keyLayout = [
-    ['Q','W','E','R','T','Y','U','I','O','P'],
-    ['A','S','D','F','G','H','J','K','L'],
-    ['ENTER','Z','X','C','V','B','N','M','⌫']
-  ];
-  function makeKeyboard() {
-    keyboardEl.innerHTML = '';
-    keyButtons.clear();
-    for (const rowKeys of keyLayout) {
-      const rowEl = document.createElement('div');
-      rowEl.className = 'keyrow';
-      for (const k of rowKeys) {
-        const b = document.createElement('button');
-        b.className = 'key' + ((k === 'ENTER' || k === '⌫') ? ' wide' : '');
-        b.textContent = k === 'ENTER' ? 'Enter' : (k === '⌫' ? 'Backspace' : k);
-        b.addEventListener('click', () => handleInput(k));
-        rowEl.appendChild(b);
-        if (k.length === 1 && /[A-Z]/.test(k)) keyButtons.set(k, b);
-      }
-      keyboardEl.appendChild(rowEl);
-    }
+  function genLetters() {
+    const common = 'RSTLNEAIOUCDMPBGHKFWYVJQXZ'.split('');
+    const count = 6 + Math.min(5, Math.floor(state.difficulty/4));
+    const letters = [];
+    for(let i=0;i<count;i++) letters.push(pick(common));
+    if(state.difficulty > 5 && Math.random() < 0.6) letters.push(pick('AEIOUY'.split('')));
+    if(state.difficulty > 10 && Math.random() < 0.35) letters.push(pick('BCDFGHJKLMNPQRSTVWXYZ'.split('')));
+    state.letters = letters;
+    state.targetHint = letters.slice(0, Math.min(4, letters.length)).join('').toLowerCase();
+    state.generatedAt = performance.now();
   }
 
-  function drawBG() {
-    ctx.clearRect(0,0,innerWidth,innerHeight);
-    const g = ctx.createLinearGradient(0,0,0,innerHeight);
-    g.addColorStop(0,'rgba(123,140,255,0.08)');
-    g.addColorStop(0.5,'rgba(255,255,255,0.02)');
-    g.addColorStop(1,'rgba(0,0,0,0.12)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,innerWidth,innerHeight);
-    for (let i=0;i<24;i++){
-      const x = (i*97 + performance.now()*0.01) % (innerWidth+80) - 40;
-      const y = (i*53) % innerHeight;
-      ctx.fillStyle = 'rgba(255,255,255,0.03)';
-      ctx.beginPath(); ctx.arc(x,y,2+(i%3),0,Math.PI*2); ctx.fill();
-    }
+  function startGame() {
+    state.mode = 'play';
+    state.time = 48;
+    state.score = 0;
+    state.combo = 0;
+    state.mult = 1;
+    state.comboPeak = 0;
+    state.wordCount = 0;
+    state.difficulty = 0;
+    state.stage = 1;
+    state.power = {hint:2, time:1, mult:1};
+    state.particles = [];
+    state.popups = [];
+    state.flash = 0;
+    state.shake = 0;
+    state.resultLine = '게임 시작! 첫 정답으로 콤보를 열어보세요.';
+    state.resultT = 2.1;
+    genLetters();
+    overlay.classList.remove('hidden');
+    overlay.style.display = 'block';
+    startBtn.textContent = 'Playing';
+    input.value = '';
+    input.focus();
+    showToast('START!', true);
+    addPopup('START', W*0.5, H*0.38, '#ffd77b');
+    updateUI();
   }
 
-  function updateMessage(txt, timeout=0){
-    messageEl.textContent = txt;
-    if(timeout){
-      clearTimeout(updateMessage.t);
-      updateMessage.t = setTimeout(()=>{ if(!gameOver) messageEl.textContent = 'Guess the 5-letter word. Press Enter to submit.'; }, timeout);
-    }
+  function restartGame(){ startGame(); }
+  startBtn.onclick = startGame;
+  restartBtn.onclick = restartGame;
+
+  function showToast(text, good=true) {
+    toast.textContent = text;
+    toast.style.borderColor = good ? 'rgba(141,255,188,.42)' : 'rgba(255,141,160,.35)';
+    toast.style.background = good ? 'rgba(16,34,26,.9)' : 'rgba(44,17,24,.92)';
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 850);
   }
 
-  function renderBoard() {
-    for (let r=0; r<6; r++) {
-      for (let c=0; c<5; c++) {
-        const tile = boardTiles[r][c];
-        const ch = guesses[r][c];
-        tile.textContent = ch;
-        tile.className = 'tile' + (ch ? ' filled' : '');
-        if (states[r][c]) tile.classList.add(states[r][c]);
-        if (r === row && c === col && !gameOver) tile.classList.add('pop');
-      }
-    }
+  function addMsg(text, t=1.6){ state.resultLine=text; state.resultT=t; helpEl.textContent = text; }
+  function addPopup(text, x, y, color){
+    state.popups.push({text, x, y, color, life:1.0, vy:-18});
+  }
+  function burst(x,y,n,col){
+    for(let i=0;i<n;i++) state.particles.push({
+      x,y,vx:(Math.random()*2-1)*2.8, vy:(Math.random()*2-1)*2.8-0.5,
+      life:0.7+Math.random()*0.55, r:1.8+Math.random()*3.8, c:col
+    });
   }
 
-  function updateKeyColors(letter, state){
-    const btn = keyButtons.get(letter);
-    if (!btn) return;
-    const rank = { absent:1, present:2, correct:3 };
-    const current = btn.dataset.state || '';
-    if (rank[state] >= (rank[current] || 0)) {
-      btn.dataset.state = state;
-      btn.classList.remove('absent','present','correct');
-      btn.classList.add(state);
-    }
+  function useHint() {
+    if(state.mode !== 'play') return;
+    if(state.power.hint<=0) return showToast('힌트 토큰이 없습니다', false);
+    state.power.hint--;
+    const sample = state.targetHint || state.letters.slice(0,4).join('').toLowerCase();
+    state.flash = 0.34;
+    state.shake = 0.08;
+    addMsg(`힌트 토큰 사용: 현재 글자 앞부분 = ${sample.toUpperCase()}`, 2.0);
+    addPopup(`HINT ${sample}`, W*0.5, H*0.47, '#7bb0ff');
+    burst(W*0.5, H*0.44, 20, '#7bb0ff');
+    showToast('HINT', true);
+  }
+  function useTime() {
+    if(state.mode !== 'play') return;
+    if(state.power.time<=0) return showToast('시간 추가가 없습니다', false);
+    state.power.time--;
+    const gain = 8 + Math.min(8, state.difficulty*0.4);
+    state.time += gain;
+    state.combo = Math.max(0, state.combo-1);
+    state.mult = Math.max(1, state.mult - 0.15);
+    state.flash = 0.38;
+    addMsg(`시간 +${gain.toFixed(1)}초!`, 1.5);
+    addPopup(`+${gain.toFixed(1)}s`, W*0.5, H*0.45, '#8dffbc');
+    burst(W*0.5,H*0.45, 22, '#8dffbc');
+    showToast(`+${gain.toFixed(1)}s`, true);
+  }
+  function useMult() {
+    if(state.mode !== 'play') return;
+    if(state.power.mult<=0) return showToast('점수배수가 없습니다', false);
+    state.power.mult--;
+    state.mult = Math.min(8, state.mult + 1);
+    state.flash = 0.32;
+    addMsg(`점수 배수 x${state.mult.toFixed(1)}!`, 1.4);
+    addPopup(`MULT x${state.mult.toFixed(1)}`, W*0.5, H*0.43, '#ffd77b');
+    burst(W*0.5,H*0.43, 22, '#ffd77b');
+    showToast(`x${state.mult.toFixed(1)}`, true);
+  }
+  hintBtn.onclick = useHint;
+  timeBtn.onclick = useTime;
+  multBtn.onclick = useMult;
+
+  function validWord(word){
+    const w = word.trim().toLowerCase();
+    if(!/^[a-z]+$/.test(w)) return {ok:false, reason:'알파벳만 입력'};
+    if(w.length < 5) return {ok:false, reason:'최소 5글자'};
+    return {ok:true, word:w};
   }
 
-  function evaluateGuess(guess) {
-    const res = Array(5).fill('absent');
-    const target = answer.split('');
-    const used = Array(5).fill(false);
-    for (let i=0;i<5;i++) if (guess[i] === target[i]) { res[i] = 'correct'; used[i] = true; }
-    for (let i=0;i<5;i++) {
-      if (res[i] === 'correct') continue;
-      const idx = target.findIndex((ch,j)=>!used[j] && ch === guess[i]);
-      if (idx !== -1) { res[i] = 'present'; used[idx] = true; }
-    }
-    return res;
+  function maybePowerUp(){
+    const rolls = [];
+    if(Math.random() < 0.4) rolls.push('hint');
+    if(Math.random() < 0.55) rolls.push('time');
+    if(Math.random() < 0.35) rolls.push('mult');
+    if(!rolls.length) return null;
+    const type = pick(rolls);
+    state.power[type]++;
+    return type;
   }
 
-  function setRowShake(r){
-    for (let c=0;c<5;c++) boardTiles[r][c].classList.add('shake');
-    setTimeout(()=>{ for (let c=0;c<5;c++) boardTiles[r][c].classList.remove('shake'); }, 300);
-  }
-
-  function commitGuess() {
-    const guess = guesses[row].join('');
-    if (guess.length < 5) return updateMessage('Not enough letters.', 900), setRowShake(row);
-    if (!/^[A-Za-z]{5}$/.test(guess)) return updateMessage('5글자 영어 단어만 입력하세요.', 1100), setRowShake(row);
-    const evals = evaluateGuess(guess);
-    for (let i=0;i<5;i++) states[row][i] = evals[i];
-    for (let i=0;i<5;i++) updateKeyColors(guess[i], evals[i]);
-    renderBoard();
-    if (guess === answer) {
-      gameOver = true;
-      streak++;
-      streakChip.textContent = 'Streak: ' + streak;
-      resultText.textContent = 'You won in ' + (row+1) + '/6!';
-      updateMessage('Correct! The word was ' + answer + '. Press R or Restart to play again.');
+  function submitWord() {
+    if(state.mode !== 'play') return;
+    const raw = input.value;
+    input.value = '';
+    const v = validWord(raw);
+    if(!v.ok){
+      state.combo = 0;
+      state.mult = Math.max(1, state.mult-0.4);
+      state.time = Math.max(0, state.time - (1.2 + state.difficulty*0.05));
+      state.lastSubmitOk = false;
+      state.shake = 0.22;
+      state.flash = 0.1;
+      addMsg(`오답: ${v.reason} — 콤보 초기화`, 1.2);
+      addPopup('MISS', W*0.5, H*0.56, '#ff8da0');
+      burst(W*0.5,H*0.55, 12, '#ff8da0');
+      showToast('MISS', false);
       return;
     }
-    row++;
-    col = 0;
-    if (row >= 6) {
-      gameOver = true;
-      streak = 0;
-      streakChip.textContent = 'Streak: 0';
-      resultText.textContent = 'Answer: ' + answer;
-      updateMessage('Out of tries! The word was ' + answer + '. Press R or Restart.');
-    } else {
-      updateMessage('Try again.');
+
+    state.wordCount++;
+    state.combo++;
+    state.comboPeak = Math.max(state.comboPeak, state.combo);
+    state.lastSubmitOk = true;
+    state.lastWord = v.word;
+    const len = v.word.length;
+    const base = len * len * 10;
+    const comboBonus = 1 + Math.min(2.8, state.combo * 0.09);
+    const diffBonus = 1 + state.difficulty * 0.04;
+    const stageBonus = 1 + (state.stage - 1) * 0.07;
+    const scoreGain = Math.floor(base * state.mult * comboBonus * diffBonus * stageBonus);
+    state.score += scoreGain;
+
+    const timeGain = 1.6 + Math.min(3.4, len * 0.14) + Math.min(1.0, state.combo * 0.06);
+    state.time += timeGain;
+
+    let powerText = '';
+    if(state.wordCount % 3 === 0 || len >= 8){
+      const gained = maybePowerUp();
+      if(gained) powerText = ` +${gained.toUpperCase()}`;
     }
+
+    if(state.combo % 4 === 0) {
+      state.mult = Math.min(8, state.mult + 0.25);
+      if(Math.random() < 0.35) state.power.mult++;
+    }
+
+    if(state.score > state.best){
+      state.best = state.score;
+      localStorage.setItem('wordrush_best_v2', state.best);
+    }
+
+    if(state.wordCount % 2 === 0 && Math.random() < 0.5) genLetters();
+    if(state.wordCount % 3 === 0) state.difficulty += 0.6;
+    if(state.wordCount % 5 === 0) state.stage = 1 + Math.floor(state.wordCount / 5);
+
+    state.flash = 0.26;
+    state.shake = 0.12;
+    state.difficultyPulse = 1.0;
+
+    const msg = `${v.word.toUpperCase()} +${scoreGain} / +${timeGain.toFixed(1)}s${powerText}`;
+    addMsg(msg, 1.45);
+    addPopup(`+${scoreGain}`, W*0.5, H*0.52, '#ffd77b');
+    addPopup(`+${timeGain.toFixed(1)}s`, W*0.5+24*DPR, H*0.58, '#8dffbc');
+    if(powerText) addPopup(powerText, W*0.5-24*DPR, H*0.44, '#9ed0ff');
+    burst(W*0.5,H*0.52, 16 + Math.min(18, len), '#ffd77b');
+    burst(W*0.5,H*0.46, 10, '#8dffbc');
+    showToast(`+${scoreGain}`, true);
   }
 
-  function handleInput(key){
-    if (gameOver) return;
-    if (key === 'ENTER') return commitGuess();
-    if (key === '⌫' || key === 'BACKSPACE') {
-      if (col > 0) { col--; guesses[row][col] = ''; renderBoard(); }
-      return;
-    }
-    if (/^[A-Z]$/.test(key)) {
-      if (col < 5) {
-        guesses[row][col] = key;
-        col++;
-        renderBoard();
-      }
-    }
-  }
-
-  function restartGame(){
-    location.reload();
-  }
-
-  document.addEventListener('keydown', e => {
-    const k = e.key;
-    if ((k === 'r' || k === 'R') && gameOver) return restartGame();  // 'r'은 게임오버 때만 재시작(플레이 중엔 글자 입력)
-    if (k === 'Enter') return handleInput('ENTER');
-    if (k === 'Backspace') return handleInput('BACKSPACE');
-    if (/^[a-zA-Z]$/.test(k)) return handleInput(k.toUpperCase());
+  addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){ e.preventDefault(); submitWord(); }
+    if(e.key === ' '){ e.preventDefault(); if(state.mode==='play'){ genLetters(); addMsg('글자 재배치!', 1.0); showToast('REARRANGE', true); burst(W*0.5,H*0.33, 14, '#7bb0ff'); } }
+    if(e.key === '1') useHint();
+    if(e.key === '2') useTime();
+    if(e.key === '3') useMult();
+    if(e.key.toLowerCase() === 'r') startGame();
+    if(e.key === 'Escape' && state.mode==='over') startGame();
   });
-  restartBtn.addEventListener('click', restartGame);
 
-  function loop(){
-    drawBG();
-    renderBoard();
+  function update(dt){
+    if(state.mode==='play'){
+      state.difficulty += dt * 0.22;
+      const drain = 1 + state.difficulty*0.045;
+      state.time -= dt * drain;
+      state.difficultyPulse = Math.max(0, state.difficultyPulse - dt*1.6);
+
+      if(state.time <= 0){
+        state.time = 0;
+        state.mode='over';
+        state.shake = 0.4;
+        state.flash = 0.5;
+        addMsg('시간 종료! R 또는 Start로 다시 도전하세요.', 999);
+        showToast('GAME OVER', false);
+      }
+
+      if(state.time < 12 && Math.random() < dt * 0.9) burst(W*(0.25+Math.random()*0.5), H*0.72 + Math.random()*20*DPR, 1, '#ff8da0');
+      if(state.resultT>0) state.resultT -= dt;
+      if(state.flash>0) state.flash = Math.max(0, state.flash-dt*2.6);
+      if(state.shake>0) state.shake = Math.max(0, state.shake-dt*2.1);
+    }
+
+    for(const p of state.particles){
+      p.life -= dt; p.x += p.vx*60*dt; p.y += p.vy*60*dt; p.vy += 1.2*dt;
+    }
+    state.particles = state.particles.filter(p=>p.life>0);
+
+    for(const p of state.popups){
+      p.life -= dt; p.y += p.vy*dt;
+    }
+    state.popups = state.popups.filter(p=>p.life>0);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const t = performance.now()*0.001;
+    const shakeX = (state.shake ? (Math.random()*2-1)*14*DPR*state.shake : 0);
+    const shakeY = (state.shake ? (Math.random()*2-1)*10*DPR*state.shake : 0);
+
+    ctx.save(); ctx.translate(shakeX, shakeY);
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#08111f'); bg.addColorStop(1,'#111a33');
+    ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+    const gridAlpha = 0.05 + Math.min(0.08, state.difficulty*0.005);
+    ctx.strokeStyle = `rgba(120,165,255,${gridAlpha})`;
+    ctx.lineWidth = 1*DPR;
+    const step = 44*DPR;
+    for(let x=0;x<W;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for(let y=0;y<H;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    for(const s of state.stars){
+      const x = (s.x*W + Math.sin(t*0.12+s.a)*18*DPR*s.v) % W;
+      const y = (s.y*H + Math.cos(t*0.10+s.a)*10*DPR*s.v) % H;
+      ctx.globalAlpha = 0.4 + 0.2*Math.sin(t+s.a);
+      ctx.fillStyle = '#bcd2ff';
+      ctx.beginPath(); ctx.arc(x,y,s.s*DPR,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    const cx = W*0.5, cy = H*0.57;
+    const ringR = Math.min(W,H)*0.23 + Math.sin(t*1.6)*2*DPR;
+    ctx.strokeStyle = 'rgba(122,160,255,.2)';
+    ctx.lineWidth = 2*DPR;
+    ctx.beginPath(); ctx.arc(cx,cy,ringR,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    ctx.beginPath(); ctx.arc(cx,cy,ringR*0.72,0,Math.PI*2); ctx.stroke();
+
+    const letters = state.letters;
+    const n = letters.length;
+    for(let i=0;i<n;i++){
+      const ang = (i/n)*Math.PI*2 - Math.PI/2 + t*(0.12 + state.difficulty*0.01);
+      const rr = ringR * (0.86 + 0.06*Math.sin(t*2+i*1.2));
+      const x = cx + Math.cos(ang)*rr;
+      const y = cy + Math.sin(ang)*rr;
+      const glow = i < 6 ? 'rgba(120,165,255,.34)' : 'rgba(255,215,123,.3)';
+      ctx.fillStyle = 'rgba(28,40,72,.92)';
+      ctx.strokeStyle = glow;
+      ctx.lineWidth = 2*DPR;
+      ctx.beginPath(); ctx.arc(x,y,27*DPR,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = `${23*DPR}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(letters[i], x, y+1*DPR);
+    }
+
+    if(state.mode === 'menu'){
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.font = `${20*DPR}px system-ui`;
+      ctx.textAlign='center';
+      ctx.fillText('Start 버튼을 눌러 시작', cx, H*0.83);
+      ctx.fillStyle = 'rgba(255,255,255,.07)';
+      ctx.fillText('정답 제출 → 점수/콤보/시간/파워업이 즉시 갱신됩니다', cx, H*0.87);
+    } else if(state.mode === 'play'){
+      ctx.fillStyle = 'rgba(141,255,188,.08)';
+      ctx.fillRect(W*0.07, H*0.18, W*0.04 + Math.min(W*0.25, state.combo*4*DPR), 6*DPR);
+    } else {
+      ctx.fillStyle = 'rgba(255,141,160,.10)';
+      ctx.fillRect(W*0.07, H*0.18, W*0.26, 6*DPR);
+    }
+
+    for(const p of state.particles){
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r*DPR,0,Math.PI*2); ctx.fill();
+    }
+    for(const p of state.popups){
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.font = `${20*DPR}px system-ui`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(p.text, p.x, p.y);
+    }
+    ctx.globalAlpha = 1;
+
+    if(state.flash>0){
+      ctx.fillStyle = `rgba(255,255,255,${state.flash*0.12})`;
+      ctx.fillRect(0,0,W,H);
+    }
+    ctx.restore();
+  }
+
+  function updateUI(){
+    const pressure = clamp(1 - state.time / 48, 0, 1);
+    timePressureFill.style.width = `${pressure*100}%`;
+    comboFill.style.width = `${clamp(state.combo % 12 / 12, 0, 1)*100}%`;
+    stageLabel.textContent = state.stage;
+    difficultyLabel.textContent = state.difficulty.toFixed(1);
+    powerList.innerHTML = `
+      <span class="tag">힌트 토큰 ${state.power.hint}</span>
+      <span class="tag">시간 + ${state.power.time}</span>
+      <span class="tag">배수 + ${state.power.mult}</span>
+      <span class="tag">최근 단어 ${state.lastWord ? state.lastWord.toUpperCase() : '-'}</span>
+      <span class="tag">최고점수 ${Math.floor(state.best).toLocaleString()}</span>
+    `;
+
+    statsEl.innerHTML = `
+      <div><b>점수</b> ${Math.floor(state.score).toLocaleString()}</div>
+      <div><b>최고점수</b> ${Math.floor(state.best).toLocaleString()}</div>
+      <div><b>단어 수</b> ${state.wordCount}</div>
+      <div><b>최장 콤보</b> ${state.comboPeak}</div>
+    `;
+
+    rightEl.innerHTML = `
+      <div><b>시간</b> ${state.time.toFixed(1)}s</div>
+      <div><b>콤보</b> x${state.mult.toFixed(1)} / ${state.combo}</div>
+      <div><b>난이도</b> ${state.difficulty.toFixed(1)} · 단계 ${state.stage}</div>
+      <div><b>최근 결과</b> ${state.resultLine || '-'}</div>
+    `;
+
+    statusEl.className = `panel status ${state.mode}`;
+    statusEl.innerHTML = state.mode === 'menu'
+      ? `<b>대기 중</b><br><span class="small">Start 버튼으로 즉시 시작</span>`
+      : state.mode === 'play'
+        ? `<b>플레이 중</b><br><span class="small">정답 제출로 루프가 진행됩니다</span>`
+        : `<b>게임 오버</b><br><span class="small">R 또는 Start로 재시작</span>`;
+
+    helpEl.textContent = state.mode === 'play'
+      ? (state.resultT > 0 ? state.resultLine : '정답을 많이 만들수록 콤보와 배수가 올라갑니다. 시간이 갈수록 난이도와 시간 압박이 강화됩니다.')
+      : state.mode === 'menu'
+        ? 'Start 버튼을 눌러 플레이를 시작하세요. 첫 몇 초는 느슨하고, 이후 압박이 점점 커집니다.'
+        : '게임 오버. 최고점수를 갱신하며 빌드를 시험해 보세요. R 키 또는 Start 버튼으로 재도전 가능합니다.';
+  }
+
+  function loop(ts){
+    if(!loop.last) loop.last = ts;
+    const dt = Math.min(0.033, (ts-loop.last)/1000);
+    loop.last = ts;
+    update(dt);
+    draw();
+    updateUI();
     requestAnimationFrame(loop);
   }
 
-  resize();
-  makeBoard();
-  makeKeyboard();
-  updateMessage('Guess the 5-letter word. Press Enter to submit.');
-  loop();
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ submitWord(); } });
+  overlay.addEventListener('click', ()=>input.focus());
+  canvas.addEventListener('pointerdown', ()=>input.focus());
+  window.addEventListener('beforeunload', ()=>{ try{ localStorage.setItem('wordrush_best_v2', String(state.best)); }catch(_){} });
+
+  showToast('준비 완료', true);
+  updateUI();
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
