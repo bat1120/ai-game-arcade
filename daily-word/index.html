@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Word Guess 5</title>
+  <style>
+    :root{
+      --bg:#121318;
+      --panel:#1b1e26;
+      --panel2:#202431;
+      --text:#e9ecf1;
+      --muted:#aab3c2;
+      --tile:#2a2f3b;
+      --tileBorder:#3a4150;
+      --correct:#4caf50;
+      --present:#c9a227;
+      --absent:#555b66;
+      --accent:#6aa6ff;
+      --danger:#ff6b6b;
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(1200px 800px at 50% 0%, #1c2030 0%, var(--bg) 55%, #0d0f14 100%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+    }
+    #wrap {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      touch-action: manipulation;
+    }
+    canvas {
+      display: block;
+      width: min(100vw, 900px);
+      height: min(100vh, 900px);
+      max-width: 100vw;
+      max-height: 100vh;
+      image-rendering: auto;
+    }
+    .sr {
+      position: absolute;
+      left: -9999px;
+      top: auto;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="900" height="900" aria-label="Word Guess 5 게임"></canvas>
+  <div class="sr" aria-live="polite" id="ariaStatus"></div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const ariaStatus = document.getElementById('ariaStatus');
+
+  const WORDS = [
+    'apple','grape','stone','chair','flame','brave','crane','bloom','smile','spare',
+    'drink','earth','storm','plant','blend','frame','giant','light','proud','vivid',
+    'patch','round','climb','shine','bring','table','crown','swift','trace','lucky',
+    'dream','ghost','prize','sugar','spice','brush','thief','whale','zebra','quiet',
+    'arrow','boost','candy','delta','eager','frost','glory','honey','irony','jelly',
+    'koala','lemon','magic','night','ocean','piano','queen','radio','solar','tiger',
+    'union','vapor','woven','xenon','yacht','zesty'
+  ];
+
+  const state = {
+    target: '',
+    grid: Array.from({length: 6}, () => Array(5).fill('')),
+    marks: Array.from({length: 6}, () => Array(5).fill(null)),
+    row: 0,
+    col: 0,
+    finished: false,
+    win: false,
+    shakeRow: -1,
+    shakeUntil: 0,
+    revealIndex: -1,
+    revealTimer: 0,
+    message: 'Enter to submit • Backspace to delete • R to restart',
+    messageTimer: 0,
+    lastTick: performance.now()
+  };
+
+  function pickWord() {
+    return WORDS[(Math.random() * WORDS.length) | 0].toUpperCase();
+  }
+
+  function resetGame() {
+    state.target = pickWord();
+    state.grid.forEach(r => r.fill(''));
+    state.marks.forEach(r => r.fill(null));
+    state.row = 0;
+    state.col = 0;
+    state.finished = false;
+    state.win = false;
+    state.shakeRow = -1;
+    state.shakeUntil = 0;
+    state.revealIndex = -1;
+    state.revealTimer = 0;
+    setMessage('새 게임 시작! 5글자 영어 단어를 맞춰보세요.');
+  }
+
+  function setMessage(msg, ms = 1800) {
+    state.message = msg;
+    state.messageTimer = ms;
+    ariaStatus.textContent = msg;
+  }
+
+  function currentGuess() {
+    return state.grid[state.row].join('');
+  }
+
+  function evaluateGuess(guess, target) {
+    const res = Array(5).fill('absent');
+    const used = Array(5).fill(false);
+    const t = target.split('');
+    for (let i = 0; i < 5; i++) {
+      if (guess[i] === t[i]) {
+        res[i] = 'correct';
+        used[i] = true;
+      }
+    }
+    for (let i = 0; i < 5; i++) {
+      if (res[i] === 'correct') continue;
+      const ch = guess[i];
+      let found = -1;
+      for (let j = 0; j < 5; j++) {
+        if (!used[j] && t[j] === ch) { found = j; break; }
+      }
+      if (found !== -1) {
+        res[i] = 'present';
+        used[found] = true;
+      }
+    }
+    return res;
+  }
+
+  function submitGuess() {
+    if (state.finished) return;
+    if (state.col < 5) {
+      setMessage('5글자를 모두 입력하세요.');
+      state.shakeRow = state.row;
+      state.shakeUntil = performance.now() + 400;
+      return;
+    }
+    const guess = currentGuess();
+    if (!WORDS.includes(guess.toLowerCase())) {
+      setMessage('사전에 없는 단어입니다. 다른 단어를 시도하세요.');
+      state.shakeRow = state.row;
+      state.shakeUntil = performance.now() + 400;
+      return;
+    }
+    const evals = evaluateGuess(guess, state.target);
+    state.marks[state.row] = evals;
+    if (guess === state.target) {
+      state.finished = true;
+      state.win = true;
+      setMessage(`정답! ${state.row + 1}번 만에 맞췄습니다. R로 재시작`, 4000);
+      return;
+    }
+    state.row++;
+    state.col = 0;
+    if (state.row >= 6) {
+      state.finished = true;
+      state.win = false;
+      setMessage(`실패! 정답은 ${state.target}. R로 재시작`, 5000);
+    } else {
+      setMessage(`시도 ${state.row + 1}/6`);
+    }
+  }
+
+  function addLetter(ch) {
+    if (state.finished) return;
+    if (state.col >= 5) return;
+    state.grid[state.row][state.col] = ch;
+    state.col++;
+  }
+
+  function backspace() {
+    if (state.finished) return;
+    if (state.col <= 0) return;
+    state.col--;
+    state.grid[state.row][state.col] = '';
+  }
+
+  function keyHandler(e) {
+    const k = e.key;
+    if (k === 'Backspace') { e.preventDefault(); backspace(); return; }
+    if (k === 'Enter') { e.preventDefault(); submitGuess(); return; }
+    if (k === 'r' || k === 'R') { resetGame(); return; }
+    if (/^[a-zA-Z]$/.test(k)) addLetter(k.toUpperCase());
+  }
+
+  window.addEventListener('keydown', keyHandler, {passive:false});
+
+  function fitCanvas() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const size = Math.min(window.innerWidth, window.innerHeight);
+    const logical = Math.max(620, Math.min(900, size));
+    canvas.width = Math.floor(logical * dpr);
+    canvas.height = Math.floor(logical * dpr);
+    canvas.style.width = logical + 'px';
+    canvas.style.height = logical + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', fitCanvas);
+  fitCanvas();
+
+  function roundedRect(x,y,w,h,r,fill,stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+  }
+
+  const keys = [
+    ['Q','W','E','R','T','Y','U','I','O','P'],
+    ['A','S','D','F','G','H','J','K','L'],
+    ['ENTER','Z','X','C','V','B','N','M','⌫']
+  ];
+
+  const keyboardState = {};
+
+  function draw() {
+    const W = Math.min(window.innerWidth, window.innerHeight, 900);
+    const H = W;
+    ctx.clearRect(0,0,W,H);
+
+    const pad = W * 0.055;
+    const titleY = pad + 10;
+    ctx.fillStyle = '#eef2ff';
+    ctx.font = '700 44px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('WORD GUESS 5', W/2, titleY + 18);
+    ctx.fillStyle = '#aeb7c7';
+    ctx.font = '500 16px system-ui, sans-serif';
+    ctx.fillText('5글자 영어 단어를 6번 안에 맞춰보세요', W/2, titleY + 45);
+
+    const infoY = titleY + 78;
+    roundedRect(pad, infoY, W - pad*2, 54, 14, 'rgba(255,255,255,0.05)', 'rgba(255,255,255,0.08)');
+    ctx.fillStyle = '#dbe3f2';
+    ctx.font = '600 15px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(state.message, pad + 16, infoY + 33);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#8ea0bb';
+    ctx.fillText(`진행 ${state.row + (state.finished ? 0 : 1)}/6`, W - pad - 16, infoY + 33);
+
+    const gridTop = infoY + 86;
+    const gridW = W - pad*2;
+    const tileGap = Math.max(8, W * 0.015);
+    const tileSize = Math.floor((gridW - tileGap * 4) / 5);
+    const gridX = Math.floor((W - (tileSize*5 + tileGap*4)) / 2);
+
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 5; c++) {
+        const x = gridX + c * (tileSize + tileGap);
+        const y = gridTop + r * (tileSize + tileGap);
+        const ch = state.grid[r][c];
+        const mark = state.marks[r][c];
+        let fill = getComputedStyle(document.documentElement).getPropertyValue('--tile').trim();
+        let stroke = getComputedStyle(document.documentElement).getPropertyValue('--tileBorder').trim();
+        if (mark === 'correct') { fill = getComputedStyle(document.documentElement).getPropertyValue('--correct').trim(); stroke = fill; }
+        else if (mark === 'present') { fill = getComputedStyle(document.documentElement).getPropertyValue('--present').trim(); stroke = fill; }
+        else if (mark === 'absent') { fill = getComputedStyle(document.documentElement).getPropertyValue('--absent').trim(); stroke = fill; }
+        else if (r === state.row && ch) { fill = '#313847'; stroke = '#4b5568'; }
+        if (state.shakeRow === r && performance.now() < state.shakeUntil) {
+          const s = Math.sin((performance.now() / 25) + c) * 4;
+          roundedRect(x + s, y, tileSize, tileSize, 12, fill, stroke);
+        } else {
+          roundedRect(x, y, tileSize, tileSize, 12, fill, stroke);
+        }
+        ctx.fillStyle = '#fff';
+        ctx.font = `700 ${Math.floor(tileSize * 0.46)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (ch) ctx.fillText(ch, x + tileSize/2, y + tileSize/2 + 1);
+      }
+    }
+
+    const kbTop = gridTop + 6 * (tileSize + tileGap) + 26;
+    const kbGap = 6;
+    const rowHeights = [40, 40, 40];
+    const rowWidths = [10, 9, 9];
+    let ky = kbTop;
+    const baseW = W - pad*2;
+    keys.forEach((row, ri) => {
+      const totalKeyUnits = row.reduce((a,k)=>a + (k === 'ENTER' || k === '⌫' ? 1.6 : 1), 0);
+      const unit = (baseW - kbGap * (row.length - 1)) / totalKeyUnits;
+      let x = pad;
+      row.forEach(k => {
+        const kw = unit * (k === 'ENTER' || k === '⌫' ? 1.6 : 1);
+        let fill = '#2a2f3b';
+        let stroke = '#3a4150';
+        const letter = k.length === 1 ? k : null;
+        if (letter) {
+          const st = keyboardState[letter];
+          if (st === 'correct') { fill = '#4caf50'; stroke = fill; }
+          else if (st === 'present') { fill = '#c9a227'; stroke = fill; }
+          else if (st === 'absent') { fill = '#555b66'; stroke = fill; }
+        } else if (k === 'ENTER') {
+          fill = '#243652';
+          stroke = '#35507a';
+        } else {
+          fill = '#352c2c';
+          stroke = '#5b4444';
+        }
+        roundedRect(x, ky, kw, rowHeights[ri], 12, fill, stroke);
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 15px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(k, x + kw/2, ky + rowHeights[ri]/2 + 1);
+        x += kw + kbGap;
+      });
+      ky += rowHeights[ri] + 8;
+    });
+
+    ctx.fillStyle = '#91a0b8';
+    ctx.font = '500 14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('키보드 입력 • Enter 제출 • Backspace 삭제 • R 재시작', W/2, H - 18);
+
+    if (state.finished) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0,0,W,H);
+      roundedRect(W*0.16, H*0.34, W*0.68, H*0.26, 24, 'rgba(20,24,34,0.95)', 'rgba(255,255,255,0.10)');
+      ctx.fillStyle = state.win ? '#8df08f' : '#ff8f8f';
+      ctx.font = '800 34px system-ui, sans-serif';
+      ctx.fillText(state.win ? 'YOU WIN!' : 'GAME OVER', W/2, H*0.43);
+      ctx.fillStyle = '#e9edf6';
+      ctx.font = '600 18px system-ui, sans-serif';
+      ctx.fillText(`정답: ${state.target}`, W/2, H*0.50);
+      ctx.fillStyle = '#b7c1d5';
+      ctx.font = '500 15px system-ui, sans-serif';
+      ctx.fillText('R 키 또는 Enter로 다시 시작', W/2, H*0.57);
+      ctx.restore();
+    }
+  }
+
+  function updateKeyboardState() {
+    const map = {};
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 5; c++) {
+        const ch = state.grid[r][c];
+        const mk = state.marks[r][c];
+        if (!ch || !mk) continue;
+        const prev = map[ch];
+        const rank = { absent: 1, present: 2, correct: 3 };
+        if (!prev || rank[mk] > rank[prev]) map[ch] = mk;
+      }
+    }
+    Object.assign(keyboardState, map);
+  }
+
+  function loop(now) {
+    const dt = now - state.lastTick;
+    state.lastTick = now;
+    if (state.messageTimer > 0) {
+      state.messageTimer -= dt;
+      if (state.messageTimer <= 0 && !state.finished) {
+        state.message = 'Enter to submit • Backspace to delete • R to restart';
+      }
+    }
+    updateKeyboardState();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width) / (window.devicePixelRatio || 1);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height) / (window.devicePixelRatio || 1);
+    const W = Math.min(window.innerWidth, window.innerHeight, 900);
+    const H = W;
+    const pad = W * 0.055;
+    const titleY = pad + 10;
+    const infoY = titleY + 78;
+    const gridTop = infoY + 86;
+    const tileGap = Math.max(8, W * 0.015);
+    const tileSize = Math.floor((W - pad*2 - tileGap * 4) / 5);
+    const gridX = Math.floor((W - (tileSize*5 + tileGap*4)) / 2);
+    const kbTop = gridTop + 6 * (tileSize + tileGap) + 26;
+    const kbGap = 6;
+    const rowHeights = [40,40,40];
+    let ky = kbTop;
+    const baseW = W - pad*2;
+    const keysFlat = [];
+    keys.forEach((row, ri) => {
+      const totalKeyUnits = row.reduce((a,k)=>a + (k === 'ENTER' || k === '⌫' ? 1.6 : 1), 0);
+      const unit = (baseW - kbGap * (row.length - 1)) / totalKeyUnits;
+      let xx = pad;
+      row.forEach(k => {
+        const kw = unit * (k === 'ENTER' || k === '⌫' ? 1.6 : 1);
+        keysFlat.push({k,x:xx,y:ky,w:kw,h:rowHeights[ri]});
+        xx += kw + kbGap;
+      });
+      ky += rowHeights[ri] + 8;
+    });
+    for (const key of keysFlat) {
+      if (x >= key.x && x <= key.x + key.w && y >= key.y && y <= key.y + key.h) {
+        if (key.k === 'ENTER') submitGuess();
+        else if (key.k === '⌫') backspace();
+        else addLetter(key.k);
+        break;
+      }
+    }
+  });
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  resetGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

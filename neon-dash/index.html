@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Rhythm Dash</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090b14;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+      background: linear-gradient(180deg, #10162a 0%, #0a0d16 100%);
+    }
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      color: #e8f1ff;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    }
+    .topbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      font-size: 14px;
+    }
+    .panel {
+      background: rgba(6, 10, 20, 0.38);
+      border: 1px solid rgba(180, 220, 255, 0.14);
+      backdrop-filter: blur(6px);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .title {
+      font-size: 18px;
+      margin-bottom: 4px;
+      color: #8fe7ff;
+    }
+    .center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 560px;
+      pointer-events: none;
+    }
+    .big {
+      font-size: 38px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      color: #ffffff;
+    }
+    .sub {
+      font-size: 15px;
+      line-height: 1.65;
+      opacity: 0.95;
+      color: #d6e6ff;
+    }
+    .accent {
+      color: #7cf4ff;
+      font-weight: 800;
+    }
+    .hidden { display: none; }
+    .btnbar {
+      margin-top: 16px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .button {
+      pointer-events: auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 800;
+      color: #08111f;
+      background: linear-gradient(180deg, #8ef5ff, #54c7ff);
+      box-shadow: 0 10px 20px rgba(64, 184, 255, 0.25);
+      cursor: pointer;
+    }
+    .button:active { transform: translateY(1px); }
+    .small {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="hud">
+  <div class="topbar">
+    <div class="panel">
+      <div class="title">RHYTHM DASH</div>
+      <div id="stats">점수 0 · 거리 0m · 최고 0m</div>
+    </div>
+    <div class="panel" id="statusPanel">SPACE / 클릭 / 터치로 점프</div>
+  </div>
+
+  <div class="center" id="overlay">
+    <div class="card panel">
+      <div class="big" id="overlayTitle">READY?</div>
+      <div class="sub" id="overlayText">
+        <div><span class="accent">한 버튼 리듬 점프</span> 아케이드.</div>
+        <div>다가오는 장애물을 피하며 최대한 멀리 달리세요.</div>
+        <div>조작: <span class="accent">SPACE</span> / <span class="accent">클릭</span> / <span class="accent">터치</span> = 점프</div>
+        <div>충돌하면 게임 오버, <span class="accent">R</span>로 재시작.</div>
+      </div>
+      <div class="btnbar">
+        <button class="button" id="startBtn">START</button>
+      </div>
+      <div class="small">점프 타이밍이 생명입니다.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const statsEl = document.getElementById('stats');
+  const statusPanel = document.getElementById('statusPanel');
+  const overlay = document.getElementById('overlay');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlayText = document.getElementById('overlayText');
+  const startBtn = document.getElementById('startBtn');
+
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    W = Math.floor(window.innerWidth);
+    H = Math.floor(window.innerHeight);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize, { passive: true });
+  resize();
+
+  const state = {
+    mode: 'ready',
+    t: 0,
+    score: 0,
+    distance: 0,
+    bestDistance: Number(localStorage.getItem('rhythm_dash_best') || 0),
+    speed: 420,
+    shake: 0,
+    flash: 0,
+    nextSpawn: 0,
+    beat: 0,
+  };
+
+  const world = {
+    groundY: () => Math.floor(H * 0.78),
+    laneY: () => Math.floor(H * 0.78),
+    parallax: 0,
+  };
+
+  const player = {
+    x: 0,
+    y: 0,
+    w: 28,
+    h: 28,
+    vy: 0,
+    onGround: true,
+    rotation: 0,
+    trail: []
+  };
+
+  let obstacles = [];
+  let particles = [];
+
+  function resetGame() {
+    state.t = 0;
+    state.score = 0;
+    state.distance = 0;
+    state.speed = 420;
+    state.shake = 0;
+    state.flash = 0;
+    state.nextSpawn = 0.8;
+    state.beat = 0;
+    obstacles = [];
+    particles = [];
+    player.x = Math.floor(W * 0.18);
+    player.y = world.groundY() - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.rotation = 0;
+    player.trail = [];
+  }
+
+  function startGame() {
+    resetGame();
+    state.mode = 'playing';
+    overlay.classList.add('hidden');
+    statusPanel.textContent = '점프로 장애물 회피';
+  }
+
+  function gameOver() {
+    state.mode = 'gameover';
+    localStorage.setItem('rhythm_dash_best', String(Math.max(state.bestDistance, Math.floor(state.distance))));
+    state.bestDistance = Math.max(state.bestDistance, Math.floor(state.distance));
+    overlay.classList.remove('hidden');
+    overlayTitle.textContent = 'GAME OVER';
+    overlayText.innerHTML = `
+      <div>도달 거리: <span class="accent">${Math.floor(state.distance)}m</span></div>
+      <div>점수: <span class="accent">${state.score}</span></div>
+      <div>최고 거리: <span class="accent">${state.bestDistance}m</span></div>
+      <div style="margin-top:8px;">다시 시작하려면 <span class="accent">R</span> 또는 버튼을 누르세요.</div>
+    `;
+    startBtn.textContent = 'RESTART';
+    statusPanel.textContent = '충돌! R 또는 버튼으로 재시작';
+    state.shake = 18;
+  }
+
+  function jump() {
+    if (state.mode === 'ready') {
+      startGame();
+      doJump();
+      return;
+    }
+    if (state.mode !== 'playing') return;
+    if (player.onGround) doJump();
+  }
+
+  function doJump() {
+    player.vy = -780;
+    player.onGround = false;
+    state.beat = 0.15;
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        x: player.x + 8,
+        y: player.y + player.h,
+        vx: -80 - Math.random() * 60,
+        vy: 40 + Math.random() * 140,
+        life: 0.35 + Math.random() * 0.25,
+        r: 2 + Math.random() * 2,
+        c: ['#7cf4ff', '#b7ff6a', '#ffffff'][Math.floor(Math.random() * 3)]
+      });
+    }
+  }
+
+  function spawnObstacle() {
+    const baseY = world.groundY();
+    const type = Math.random() < 0.7 ? 'spike' : (Math.random() < 0.5 ? 'tall' : 'double');
+    const h = type === 'spike' ? 28 : type === 'tall' ? 50 : 28;
+    const w = type === 'double' ? 22 : 24;
+    obstacles.push({
+      x: W + 40,
+      y: baseY - h,
+      w,
+      h,
+      type,
+      passed: false
+    });
+    if (type === 'double') {
+      obstacles.push({
+        x: W + 72,
+        y: baseY - h,
+        w: 22,
+        h,
+        type: 'spike',
+        passed: false
+      });
+    }
+  }
+
+  function rectsCollide(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function burst(x, y, color, count = 18) {
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 80 + Math.random() * 320;
+      particles.push({
+        x, y,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 60,
+        life: 0.45 + Math.random() * 0.35,
+        r: 2 + Math.random() * 3,
+        c: color
+      });
+    }
+  }
+
+  function update(dt) {
+    if (state.mode === 'playing') {
+      state.t += dt;
+      state.speed += dt * 18;
+      state.distance += dt * (state.speed / 4.5);
+      state.score = Math.floor(state.distance / 10);
+      state.nextSpawn -= dt;
+      if (state.nextSpawn <= 0) {
+        spawnObstacle();
+        const minGap = Math.max(0.65, 1.15 - state.speed / 2400);
+        state.nextSpawn = minGap + Math.random() * 0.55;
+      }
+
+      player.vy += 1850 * dt;
+      player.y += player.vy * dt;
+      const gy = world.groundY() - player.h;
+      if (player.y >= gy) {
+        if (!player.onGround && player.vy > 200) burst(player.x + 12, gy + player.h, '#7cf4ff', 6);
+        player.y = gy;
+        player.vy = 0;
+        player.onGround = true;
+      }
+
+      player.rotation += dt * (player.onGround ? 0 : 9);
+      player.rotation = player.onGround ? Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2) : player.rotation;
+
+      obstacles.forEach(o => {
+        o.x -= state.speed * dt;
+        if (!o.passed && o.x + o.w < player.x) {
+          o.passed = true;
+          state.score += 5;
+          burst(o.x + o.w * 0.5, o.y, '#b7ff6a', 10);
+        }
+      });
+      obstacles = obstacles.filter(o => o.x + o.w > -40);
+
+      for (const o of obstacles) {
+        const pbox = { x: player.x + 4, y: player.y + 4, w: player.w - 8, h: player.h - 4 };
+        const obox = { x: o.x + 2, y: o.y + 2, w: o.w - 4, h: o.h - 2 };
+        if (rectsCollide(pbox, obox)) {
+          burst(player.x + 14, player.y + 14, '#ff6b8a', 22);
+          gameOver();
+          break;
+        }
+      }
+
+      state.beat = Math.max(0, state.beat - dt * 2);
+      state.flash = Math.max(0, state.flash - dt * 2);
+    }
+
+    for (const p of particles) {
+      p.life -= dt;
+      p.vy += 900 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    particles = particles.filter(p => p.life > 0);
+
+    state.shake = Math.max(0, state.shake - dt * 30);
+  }
+
+  function drawBackground() {
+    const gy = world.groundY();
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#11182f');
+    grad.addColorStop(0.65, '#0a0d16');
+    grad.addColorStop(1, '#070910');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    const skyGlow = ctx.createRadialGradient(W*0.7, H*0.2, 10, W*0.7, H*0.2, W*0.65);
+    skyGlow.addColorStop(0, 'rgba(86, 191, 255, 0.16)');
+    skyGlow.addColorStop(1, 'rgba(86, 191, 255, 0)');
+    ctx.fillStyle = skyGlow;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    ctx.translate(0, Math.sin(state.t * 1.2) * 1.5);
+    const gridStep = 34;
+    const offset = -(state.speed * state.t * 0.15) % gridStep;
+    ctx.strokeStyle = 'rgba(127, 214, 255, 0.07)';
+    ctx.lineWidth = 1;
+    for (let x = offset; x < W; x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(x, gy - 2);
+      ctx.lineTo(x, H);
+      ctx.stroke();
+    }
+    for (let y = gy; y < H; y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#121826';
+    ctx.fillRect(0, gy, W, H - gy);
+
+    ctx.fillStyle = 'rgba(124, 244, 255, 0.18)';
+    ctx.fillRect(0, gy - 4, W, 4);
+
+    const lineY = gy + 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, lineY);
+    ctx.lineTo(W, lineY);
+    ctx.stroke();
+
+    for (let i = 0; i < 8; i++) {
+      const bx = (i * 220 - (state.speed * state.t * 0.35) % 220);
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(124,244,255,0.35)' : 'rgba(183,255,106,0.25)';
+      ctx.fillRect(bx, gy + 8, 110, 5);
+    }
+  }
+
+  function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x + player.w/2, player.y + player.h/2);
+    ctx.rotate(player.rotation);
+
+    ctx.shadowColor = 'rgba(124, 244, 255, 0.8)';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = '#7cf4ff';
+    ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a0d16';
+    ctx.fillRect(-player.w/2 + 6, -player.h/2 + 6, 7, 7);
+    ctx.fillRect(-player.w/2 + 16, -player.h/2 + 6, 7, 7);
+    ctx.fillRect(-player.w/2 + 6, -player.h/2 + 16, 17, 4);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    ctx.fillRect(-player.w/2 + 3, -player.h/2 + 3, 6, 4);
+
+    ctx.restore();
+  }
+
+  function drawObstacle(o) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    if (o.type === 'spike') {
+      ctx.fillStyle = '#ff6b8a';
+      ctx.beginPath();
+      ctx.moveTo(0, o.h);
+      ctx.lineTo(o.w * 0.5, 0);
+      ctx.lineTo(o.w, o.h);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath();
+      ctx.moveTo(o.w * 0.18, o.h * 0.74);
+      ctx.lineTo(o.w * 0.5, o.h * 0.18);
+      ctx.lineTo(o.w * 0.82, o.h * 0.74);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#b7ff6a';
+      ctx.fillRect(0, 0, o.w, o.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.fillRect(4, 4, o.w - 8, 6);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(3, o.h - 6, o.w - 6, 3);
+    }
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      ctx.globalAlpha = Math.max(0, p.life * 2);
+      ctx.fillStyle = p.c;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function render() {
+    ctx.save();
+    if (state.shake > 0) {
+      const s = state.shake;
+      ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+    }
+
+    drawBackground();
+    drawParticles();
+    obstacles.forEach(drawObstacle);
+    drawPlayer();
+
+    if (state.flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${state.flash * 0.18})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    ctx.restore();
+
+    statsEl.textContent = `점수 ${state.score} · 거리 ${Math.floor(state.distance)}m · 최고 ${state.bestDistance}m`;
+
+    if (state.mode === 'playing') {
+      overlay.classList.add('hidden');
+    } else if (state.mode === 'ready') {
+      overlay.classList.remove('hidden');
+      overlayTitle.textContent = 'READY?';
+      overlayText.innerHTML = `
+        <div><span class="accent">한 버튼 리듬 점프</span> 아케이드.</div>
+        <div>다가오는 장애물을 피하며 최대한 멀리 달리세요.</div>
+        <div>조작: <span class="accent">SPACE</span> / <span class="accent">클릭</span> / <span class="accent">터치</span> = 점프</div>
+        <div>충돌하면 게임 오버, <span class="accent">R</span>로 재시작.</div>
+      `;
+      startBtn.textContent = 'START';
+      statusPanel.textContent = 'SPACE / 클릭 / 터치로 점프';
+    }
+  }
+
+  function loop(ts) {
+    if (!state.last) state.last = ts;
+    const dt = Math.min(0.033, (ts - state.last) / 1000);
+    state.last = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function restartIfNeeded() {
+    if (state.mode === 'gameover') startGame();
+    else if (state.mode === 'ready') startGame();
+    else jump();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      e.preventDefault();
+      jump();
+    }
+    if (e.code === 'KeyR') {
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+  window.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    restartIfNeeded();
+  }, { passive: false });
+
+  startBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    startGame();
+  });
+
+  resetGame();
+  state.mode = 'ready';
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
