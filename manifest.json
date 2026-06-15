@@ -1,0 +1,32 @@
+[
+  {
+    "slug": "daily-word",
+    "title": "DAILY WORD",
+    "score": 88
+  },
+  {
+    "slug": "gem-match",
+    "title": "GEM MATCH",
+    "score": 90
+  },
+  {
+    "slug": "merge-2048",
+    "title": "MERGE 2048",
+    "score": 84
+  },
+  {
+    "slug": "neon-dash",
+    "title": "NEON DASH",
+    "score": 84
+  },
+  {
+    "slug": "tower-defense",
+    "title": "TOWER LINE",
+    "score": 78
+  },
+  {
+    "slug": "zombie-survival",
+    "title": "DEAD HOUR",
+    "score": 88
+  }
+]

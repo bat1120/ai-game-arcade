@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Gem Cascade Match-3</title>
+<style>
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at top, #15203a 0%, #0b1020 55%, #05070d 100%);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    touch-action: none;
+    user-select: none;
+  }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  .hud {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    pointer-events: none;
+    color: #eef5ff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    font-weight: 700;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px 0;
+    box-sizing: border-box;
+  }
+  .panel {
+    pointer-events: none;
+    background: rgba(8, 14, 28, 0.44);
+    border: 1px solid rgba(170, 210, 255, 0.14);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+    backdrop-filter: blur(6px);
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+  .title {
+    font-size: 18px;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .hint {
+    margin-top: 8px;
+    font-size: 12px;
+    opacity: 0.9;
+    line-height: 1.45;
+    max-width: 540px;
+  }
+  .right {
+    min-width: 240px;
+    text-align: right;
+  }
+  .btns {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 8px;
+    pointer-events: auto;
+  }
+  button {
+    appearance: none;
+    border: none;
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-weight: 800;
+    color: #f5fbff;
+    background: linear-gradient(180deg, #4e83ff, #2b56d8);
+    box-shadow: 0 10px 24px rgba(31, 82, 210, 0.3);
+    cursor: pointer;
+  }
+  button:active { transform: translateY(1px); }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 8, 18, 0.58);
+    backdrop-filter: blur(6px);
+    color: white;
+    text-align: center;
+    padding: 24px;
+    box-sizing: border-box;
+  }
+  .overlay.show { display: flex; }
+  .card {
+    max-width: 540px;
+    width: min(540px, 92vw);
+    background: linear-gradient(180deg, rgba(16, 24, 44, 0.96), rgba(9, 13, 25, 0.96));
+    border: 1px solid rgba(170, 210, 255, 0.18);
+    border-radius: 22px;
+    padding: 24px 20px 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  }
+  .card h1 {
+    margin: 0 0 10px;
+    font-size: 34px;
+    letter-spacing: 0.6px;
+  }
+  .card p {
+    margin: 8px 0;
+    line-height: 1.6;
+    color: #d8e6ff;
+  }
+  .card .big {
+    font-size: 22px;
+    font-weight: 900;
+    color: #fff;
+    margin: 12px 0;
+  }
+  .footer-note {
+    position: fixed;
+    right: 12px;
+    bottom: 10px;
+    color: rgba(230,240,255,0.75);
+    font-size: 12px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="panel">
+      <div class="title">Gem Cascade</div>
+      <div class="stats" id="stats"></div>
+      <div class="hint">조작: 보석 클릭 → 인접한 보석 클릭으로 스왑 / 드래그 가능 · 3개 이상 맞추기 · 목표 점수 달성 또는 턴/시간 관리</div>
+    </div>
+    <div class="panel right">
+      <div id="modeText">모드</div>
+      <div class="btns">
+        <button id="restartBtn">재시작 (R)</button>
+        <button id="shuffleBtn">셔플</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h1 id="endTitle">게임 종료</h1>
+    <div class="big" id="endReason"></div>
+    <p id="endStats"></p>
+    <p>R 키 또는 재시작 버튼으로 다시 시작할 수 있습니다.</p>
+    <div class="btns" style="justify-content:center; pointer-events:auto;">
+      <button id="playAgainBtn">다시 플레이</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">파일 하나로 실행되는 오프라인 HTML5 Match-3</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const statsEl = document.getElementById('stats');
+  const modeText = document.getElementById('modeText');
+  const overlay = document.getElementById('overlay');
+  const endTitle = document.getElementById('endTitle');
+  const endReason = document.getElementById('endReason');
+  const endStats = document.getElementById('endStats');
+  const restartBtn = document.getElementById('restartBtn');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+
+  const GEM_COUNT = 7;
+  const COLORS = ['#ff5f7a','#5ad7ff','#ffd166','#7cff8f','#b48cff','#ff9f43','#ff6bd6'];
+  const GLOWS = ['#ff9fb0','#bdefff','#fff0ab','#bfffd0','#ddc4ff','#ffd4a9','#ffc0ef'];
+  const SYMBOLS = ['◆','●','▲','✦','⬢','✧','⬤'];
+  const SWAP_TIME = 0.17;
+  const FALL_TIME = 0.18;
+  const CLEAR_TIME = 0.14;
+
+  const state = {
+    cols: 8,
+    rows: 8,
+    board: [],
+    selected: null,
+    animating: false,
+    score: 0,
+    timeLeft: 90,
+    movesLeft: 30,
+    targetScore: 2200,
+    gameOver: false,
+    win: false,
+    lastActionTime: 0,
+    phase: 'play',
+    cellSize: 64,
+    ox: 0,
+    oy: 0,
+    pointerDown: false,
+    dragStart: null,
+    pointerId: null,
+    messages: []
+  };
+
+  const particles = [];
+  let lastT = performance.now();
+  let accumulator = 0;
+
+  function randInt(n) { return (Math.random() * n) | 0; }
+  function choice(a) { return a[randInt(a.length)]; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function resize() {
+    canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
+    canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    const padX = 24, padTop = 90, padBottom = 20;
+    const usableW = window.innerWidth - padX * 2;
+    const usableH = window.innerHeight - padTop - padBottom;
+    state.cellSize = Math.floor(Math.min(usableW / state.cols, usableH / state.rows));
+    state.cellSize = Math.max(42, Math.min(82, state.cellSize));
+    state.ox = Math.floor((window.innerWidth - state.cellSize * state.cols) / 2);
+    state.oy = Math.floor(padTop + (usableH - state.cellSize * state.rows) / 2);
+  }
+
+  function makeGem(type, rowOffset = 0) {
+    return {
+      type,
+      yOffset: rowOffset,
+      xOffset: 0,
+      scale: 1,
+      alpha: 1,
+      clearing: 0,
+      falling: rowOffset > 0,
+      swapX: 0,
+      swapY: 0
+    };
+  }
+
+  function newBoard() {
+    state.board = Array.from({ length: state.rows }, () => Array(state.cols).fill(null));
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        let t;
+        do {
+          t = randInt(GEM_COUNT);
+        } while ((c >= 2 && state.board[r][c-1]?.type === t && state.board[r][c-2]?.type === t) ||
+                 (r >= 2 && state.board[r-1][c]?.type === t && state.board[r-2][c]?.type === t));
+        state.board[r][c] = makeGem(t);
+      }
+    }
+    if (!findMatches().length && !hasPossibleMove()) {
+      shuffleBoard(false);
+    }
+  }
+
+  function inBounds(r,c){ return r>=0 && c>=0 && r<state.rows && c<state.cols; }
+  function getGem(r,c){ return inBounds(r,c) ? state.board[r][c] : null; }
+
+  function neighbors(a,b){
+    return Math.abs(a.r-b.r) + Math.abs(a.c-b.c) === 1;
+  }
+
+  function swapCells(a, b, animated = true) {
+    const ga = getGem(a.r, a.c), gb = getGem(b.r, b.c);
+    state.board[a.r][a.c] = gb;
+    state.board[b.r][b.c] = ga;
+    if (animated) {
+      if (ga) { ga.swapX = (b.c - a.c); ga.swapY = (b.r - a.r); }
+      if (gb) { gb.swapX = (a.c - b.c); gb.swapY = (a.r - b.r); }
+    }
+  }
+
+  function findMatches() {
+    const marks = new Set();
+    const lines = [];
+
+    for (let r = 0; r < state.rows; r++) {
+      let runType = -1, runStart = 0, runLen = 0;
+      for (let c = 0; c <= state.cols; c++) {
+        const t = c < state.cols && state.board[r][c] ? state.board[r][c].type : -99;
+        if (c < state.cols && t === runType) runLen++;
+        else {
+          if (runLen >= 3) {
+            const line = [];
+            for (let k = 0; k < runLen; k++) {
+              marks.add(`${r},${runStart+k}`);
+              line.push({ r, c: runStart + k });
+            }
+            lines.push(line);
+          }
+          runType = t;
+          runStart = c;
+          runLen = c < state.cols ? 1 : 0;
+        }
+      }
+    }
+
+    for (let c = 0; c < state.cols; c++) {
+      let runType = -1, runStart = 0, runLen = 0;
+      for (let r = 0; r <= state.rows; r++) {
+        const t = r < state.rows && state.board[r][c] ? state.board[r][c].type : -99;
+        if (r < state.rows && t === runType) runLen++;
+        else {
+          if (runLen >= 3) {
+            const line = [];
+            for (let k = 0; k < runLen; k++) {
+              marks.add(`${runStart+k},${c}`);
+              line.push({ r: runStart + k, c });
+            }
+            lines.push(line);
+          }
+          runType = t;
+          runStart = r;
+          runLen = r < state.rows ? 1 : 0;
+        }
+      }
+    }
+    return { marks, lines };
+  }
+
+  function clearMatches(marks) {
+    let cleared = 0;
+    for (const key of marks) {
+      const [r,c] = key.split(',').map(Number);
+      const gem = getGem(r,c);
+      if (gem) {
+        gem.clearing = 1;
+        cleared++;
+      }
+    }
+    state.score += cleared * 10;
+    spawnBurst(cleared);
+    return cleared;
+  }
+
+  function spawnBurst(count) {
+    for (let i = 0; i < Math.max(6, count * 2); i++) {
+      const a = Math.random() * Math.PI * 2;
+      particles.push({
+        x: state.ox + state.cellSize * (state.cols/2),
+        y: state.oy + state.cellSize * (state.rows/2),
+        vx: Math.cos(a) * (80 + Math.random()*180),
+        vy: Math.sin(a) * (80 + Math.random()*180) - 90,
+        life: 0.45 + Math.random()*0.45,
+        age: 0,
+        color: choice(GLOWS)
+      });
+    }
+  }
+
+  function collapseBoard() {
+    for (let c = 0; c < state.cols; c++) {
+      let write = state.rows - 1;
+      for (let r = state.rows - 1; r >= 0; r--) {
+        const gem = state.board[r][c];
+        if (gem && gem.clearing <= 0) {
+          if (write !== r) {
+            state.board[write][c] = gem;
+            state.board[r][c] = null;
+          }
+          gem.yOffset = write - r;
+          gem.falling = gem.yOffset > 0;
+          write--;
+        } else {
+          state.board[r][c] = null;
+        }
+      }
+      for (let r = write; r >= 0; r--) {
+        const t = randInt(GEM_COUNT);
+        const gem = makeGem(t, write - r + 1);
+        gem.alpha = 0;
+        state.board[r][c] = gem;
+      }
+    }
+  }
+
+  function fillAndAnimate(dt) {
+    let moving = false;
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        const g = state.board[r][c];
+        if (!g) continue;
+        if (g.clearing > 0) {
+          g.clearing -= dt / CLEAR_TIME;
+          g.scale = 1 + g.clearing * 0.4;
+          g.alpha = Math.max(0, g.clearing);
+          moving = true;
+        } else {
+          g.scale += (1 - g.scale) * Math.min(1, dt * 12);
+          g.alpha += (1 - g.alpha) * Math.min(1, dt * 14);
+          if (g.falling) {
+            g.yOffset -= dt / FALL_TIME;
+            if (g.yOffset <= 0) {
+              g.yOffset = 0;
+              g.falling = false;
+            } else moving = true;
+          }
+          if (g.swapX || g.swapY) {
+            g.swapX += (0 - g.swapX) * Math.min(1, dt * 20);
+            g.swapY += (0 - g.swapY) * Math.min(1, dt * 20);
+            if (Math.abs(g.swapX) < 0.01) g.swapX = 0;
+            if (Math.abs(g.swapY) < 0.01) g.swapY = 0;
+            if (g.swapX || g.swapY) moving = true;
+          }
+        }
+      }
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 180 * dt;
+      if (p.age >= p.life) particles.splice(i,1);
+    }
+    return moving;
+  }
+
+  function processMatches(chain = true) {
+    const { marks } = findMatches();
+    if (marks.size) {
+      clearMatches(marks);
+      collapseBoard();
+      state.lastActionTime = performance.now();
+      return true;
+    }
+    return false;
+  }
+
+  function resolveBoard() {
+    state.animating = true;
+    let safety = 0;
+    const step = () => {
+      const hasMoving = fillAndAnimate(0.016);
+      if (!hasMoving && safety < 240) {
+        if (processMatches(true)) {
+          safety++;
+          requestAnimationFrame(step);
+        } else {
+          state.animating = false;
+          if (!hasPossibleMove()) {
+            shuffleBoard(true);
+          }
+        }
+      } else if (hasMoving) {
+        safety++;
+        requestAnimationFrame(step);
+      } else {
+        state.animating = false;
+      }
+    };
+    requestAnimationFrame(step);
+  }
+
+  function trySwap(a, b) {
+    if (state.animating || state.gameOver) return;
+    if (!neighbors(a,b)) return;
+    state.movesLeft--;
+    swapCells(a, b, true);
+    state.animating = true;
+
+    setTimeout(() => {
+      const { marks } = findMatches();
+      if (marks.size) {
+        processMatches(true);
+        setTimeout(() => {
+          state.animating = false;
+          resolveBoard();
+        }, 0);
+      } else {
+        swapCells(a, b, true);
+        state.animating = true;
+        setTimeout(() => {
+          state.animating = false;
+        }, 120);
+      }
+      checkEnd();
+    }, 120);
+  }
+
+  function checkEnd() {
+    if (state.score >= state.targetScore) {
+      endGame(true, '목표 점수 달성!');
+      return;
+    }
+    if (state.movesLeft <= 0 || state.timeLeft <= 0) {
+      endGame(false, state.movesLeft <= 0 ? '턴이 모두 소진되었습니다.' : '시간이 끝났습니다.');
+    }
+  }
+
+  function endGame(win, reason) {
+    if (state.gameOver) return;
+    state.gameOver = true;
+    state.win = win;
+    endTitle.textContent = win ? '승리!' : '패배';
+    endReason.textContent = reason;
+    endStats.textContent = `최종 점수: ${state.score} / 목표: ${state.targetScore} · 남은 턴: ${state.movesLeft} · 남은 시간: ${Math.max(0, state.timeLeft).toFixed(1)}초`;
+    overlay.classList.add('show');
+  }
+
+  function resetGame() {
+    state.selected = null;
+    state.animating = false;
+    state.score = 0;
+    state.timeLeft = 90;
+    state.movesLeft = 30;
+    state.targetScore = 2200;
+    state.gameOver = false;
+    state.win = false;
+    overlay.classList.remove('show');
+    particles.length = 0;
+    newBoard();
+    state.lastActionTime = performance.now();
+    resolveBoard();
+  }
+
+  function hasPossibleMove() {
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        const a = {r,c};
+        const dirs = [{r:r+1,c},{r,c:c+1}];
+        for (const b of dirs) {
+          if (!inBounds(b.r,b.c)) continue;
+          swapCells(a,b,false);
+          const ok = findMatches().marks.size > 0;
+          swapCells(a,b,false);
+          if (ok) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function shuffleBoard(silent = false) {
+    if (state.animating) return;
+    const arr = [];
+    for (let r=0;r<state.rows;r++) for (let c=0;c<state.cols;c++) arr.push(state.board[r][c]?.type ?? randInt(GEM_COUNT));
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    let idx = 0;
+    for (let r=0;r<state.rows;r++) for (let c=0;c<state.cols;c++) state.board[r][c] = makeGem(arr[idx++]);
+    if (!hasPossibleMove() || findMatches().marks.size) {
+      shuffleBoard(true);
+      return;
+    }
+    if (!silent) state.score = Math.max(0, state.score - 50);
+  }
+
+  function cellFromPointer(x, y) {
+    const c = Math.floor((x - state.ox) / state.cellSize);
+    const r = Math.floor((y - state.oy) / state.cellSize);
+    if (!inBounds(r,c)) return null;
+    return { r, c };
+  }
+
+  function drawBackground(t) {
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    const grad = ctx.createRadialGradient(w*0.5, h*0.1, 20, w*0.5, h*0.35, Math.max(w,h));
+    grad.addColorStop(0, '#1c2e55');
+    grad.addColorStop(0.6, '#10182d');
+    grad.addColorStop(1, '#05070d');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,w,h);
+
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    for (let i=0;i<30;i++) {
+      const x = (i*113 + (t*0.02)) % (w+120) - 60;
+      const y = (i*67 + (t*0.01)) % (h+120) - 60;
+      ctx.fillStyle = i%2 ? '#7fd3ff' : '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x,y,1.5+(i%4)*0.4,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawBoard(t) {
+    const s = state.cellSize;
+    const ox = state.ox, oy = state.oy;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = 'rgba(6, 11, 24, 0.58)';
+    roundRect(ctx, ox-10, oy-10, s*state.cols+20, s*state.rows+20, 22);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    for (let r = 0; r < state.rows; r++) {
+      for (let c = 0; c < state.cols; c++) {
+        const g = state.board[r][c];
+        if (!g) continue;
+        const px = ox + c*s + (g.swapX || 0) * s;
+        const py = oy + r*s + (g.swapY || 0) * s + (g.yOffset || 0) * s;
+        const cx = px + s/2;
+        const cy = py + s/2;
+        const pulse = 1 + Math.sin(t*0.004 + r*0.7 + c*1.1) * 0.02;
+        const sc = s * 0.34 * g.scale * pulse;
+        ctx.globalAlpha = g.alpha;
+        ctx.fillStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        ctx.arc(cx, cy + 5, sc*0.95, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((r*13 + c*7 + t*0.01) % (Math.PI*2));
+        const glow = GLOWS[g.type];
+        const col = COLORS[g.type];
+        ctx.shadowColor = glow;
+        ctx.shadowBlur = 18;
+        const g1 = ctx.createRadialGradient(-sc*0.25, -sc*0.25, sc*0.1, 0, 0, sc*1.3);
+        g1.addColorStop(0, '#ffffff');
+        g1.addColorStop(0.2, glow);
+        g1.addColorStop(0.65, col);
+        g1.addColorStop(1, '#481536');
+        ctx.fillStyle = g1;
+        diamond(ctx, 0, 0, sc, SYMBOLS[g.type]);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = Math.max(1.2, s*0.03);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = `${Math.floor(sc*1.0)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(SYMBOLS[g.type], 0, 1);
+        ctx.restore();
+
+        if (state.selected && state.selected.r === r && state.selected.c === c) {
+          ctx.save();
+          ctx.globalAlpha = 0.92;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4;
+          ctx.shadowColor = '#7fd3ff';
+          ctx.shadowBlur = 14;
+          roundRect(ctx, px + 5, py + 5, s - 10, s - 10, 14);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    for (let r = 0; r <= state.rows; r++) {
+      const y = oy + r*s;
+      ctx.beginPath(); ctx.moveTo(ox, y); ctx.lineTo(ox + state.cols*s, y); ctx.stroke();
+    }
+    for (let c = 0; c <= state.cols; c++) {
+      const x = ox + c*s;
+      ctx.beginPath(); ctx.moveTo(x, oy); ctx.lineTo(x, oy + state.rows*s); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    for (const p of particles) {
+      const a = 1 - p.age / p.life;
+      ctx.globalAlpha = Math.max(0, a);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5 + a*2.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawUI() {
+    const tl = Math.max(0, state.timeLeft).toFixed(1);
+    statsEl.innerHTML = `
+      <div>점수: <b>${state.score}</b> / ${state.targetScore}</div>
+      <div>남은 턴: <b>${state.movesLeft}</b></div>
+      <div>시간: <b>${tl}초</b></div>
+      <div>상태: <b>${state.gameOver ? (state.win ? '승리' : '패배') : (state.animating ? '연쇄 처리 중' : '플레이 중')}</b></div>
+    `;
+    modeText.textContent = `목표 점수 ${state.targetScore} · ${
+      state.movesLeft > 0 ? '턴 제한' : '종료'
+    } · ${state.timeLeft > 0 ? '시간 제한' : '종료'}`;
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.arcTo(x+w, y, x+w, y+h, r);
+    c.arcTo(x+w, y+h, x, y+h, r);
+    c.arcTo(x, y+h, x, y, r);
+    c.arcTo(x, y, x+w, y, r);
+    c.closePath();
+  }
+  function diamond(c, x, y, s) {
+    c.beginPath();
+    c.moveTo(x, y - s);
+    c.lineTo(x + s*0.95, y);
+    c.lineTo(x, y + s);
+    c.lineTo(x - s*0.95, y);
+    c.closePath();
+  }
+
+  function loop(t) {
+    const dt = Math.min(0.033, (t - lastT) / 1000);
+    lastT = t;
+    if (!state.gameOver) {
+      state.timeLeft -= dt;
+      if (state.timeLeft <= 0) {
+        state.timeLeft = 0;
+        checkEnd();
+      }
+    }
+    accumulator += dt;
+    fillAndAnimate(dt);
+
+    drawBackground(t);
+    drawBoard(t);
+    drawParticles();
+    drawUI();
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state.gameOver) return;
+    canvas.setPointerCapture(e.pointerId);
+    state.pointerDown = true;
+    state.pointerId = e.pointerId;
+    const p = cellFromPointer(e.clientX, e.clientY);
+    if (!p) return;
+    if (state.selected && state.selected.r === p.r && state.selected.c === p.c) {
+      state.selected = null;
+      return;
+    }
+    if (!state.selected) {
+      state.selected = p;
+    } else {
+      if (neighbors(state.selected, p)) {
+        const a = state.selected;
+        state.selected = null;
+        trySwap(a, p);
+      } else {
+        state.selected = p;
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (state.gameOver || !state.pointerDown) return;
+    const p = cellFromPointer(e.clientX, e.clientY);
+    if (!p || !state.selected) return;
+    if (neighbors(state.selected, p)) {
+      const a = state.selected;
+      state.selected = null;
+      state.pointerDown = false;
+      trySwap(a, p);
+    }
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    state.pointerDown = false;
+    state.pointerId = null;
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'r' || e.key === 'R') resetGame();
+    if (e.key === 'Escape') state.selected = null;
+    if (e.key === 's' || e.key === 'S') shuffleBoard(false);
+  });
+
+  restartBtn.onclick = resetGame;
+  playAgainBtn.onclick = resetGame;
+  shuffleBtn.onclick = () => {
+    if (!state.gameOver) shuffleBoard(false);
+  };
+
+  window.addEventListener('resize', resize);
+
+  resize();
+  resetGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>2048 Slide Merge</title>
+<style>
+  :root{
+    --bg:#11131a;
+    --panel:#1b1f2a;
+    --panel2:#222736;
+    --text:#eef2ff;
+    --muted:#aab3cc;
+    --accent:#7cf7c8;
+    --danger:#ff6b6b;
+    --shadow: rgba(0,0,0,.35);
+  }
+  html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:
+      radial-gradient(circle at 20% 20%, #1f2740 0%, transparent 28%),
+      radial-gradient(circle at 80% 10%, #2a1f3f 0%, transparent 24%),
+      linear-gradient(180deg, #0c0f16 0%, #111826 100%);
+    color:var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif;
+    user-select:none;
+    -webkit-user-select:none;
+    touch-action:none;
+  }
+  #wrap{
+    position:relative;
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  canvas{
+    display:block;
+    width:min(94vw, 560px);
+    height:auto;
+    aspect-ratio: 1 / 1.25;
+    max-height:94vh;
+    border-radius:24px;
+    box-shadow: 0 20px 70px var(--shadow), inset 0 1px 0 rgba(255,255,255,.06);
+    background: linear-gradient(180deg, #151a26 0%, #111522 100%);
+  }
+  .hud{
+    position:absolute;
+    top:16px;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(94vw, 560px);
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    pointer-events:none;
+  }
+  .card{
+    pointer-events:none;
+    background: rgba(27,31,42,.72);
+    backdrop-filter: blur(10px);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:16px;
+    padding:10px 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.2);
+    min-width: 108px;
+  }
+  .label{
+    font-size:12px;
+    color:var(--muted);
+    letter-spacing:.04em;
+  }
+  .value{
+    font-size:22px;
+    font-weight:800;
+    margin-top:2px;
+  }
+  .topbar{
+    position:absolute;
+    top:16px;
+    left:50%;
+    transform:translateX(-50%);
+    width:min(94vw, 560px);
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+    pointer-events:none;
+  }
+  .btn{
+    pointer-events:auto;
+    border:none;
+    background:linear-gradient(180deg, #2b3245, #202636);
+    color:var(--text);
+    border-radius:14px;
+    padding:10px 14px;
+    font-weight:700;
+    box-shadow: 0 10px 24px rgba(0,0,0,.22);
+    border:1px solid rgba(255,255,255,.08);
+    cursor:pointer;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .overlay{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: rgba(6,8,14,.58);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease;
+  }
+  .overlay.show{
+    opacity:1;
+    pointer-events:auto;
+  }
+  .panel{
+    width:min(88vw, 420px);
+    background: linear-gradient(180deg, rgba(29,34,48,.96), rgba(18,21,31,.96));
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:24px;
+    padding:24px 20px 18px;
+    text-align:center;
+    box-shadow: 0 26px 80px rgba(0,0,0,.45);
+  }
+  .title{
+    font-size:34px;
+    font-weight:900;
+    margin:0 0 10px;
+    letter-spacing:-0.03em;
+  }
+  .subtitle{
+    color:var(--muted);
+    line-height:1.5;
+    margin:0 0 16px;
+    font-size:15px;
+  }
+  .status{
+    font-size:20px;
+    font-weight:800;
+    margin:10px 0 8px;
+  }
+  .status.win{ color: var(--accent); }
+  .status.lose{ color: var(--danger); }
+  .controls{
+    position:absolute;
+    left:50%;
+    bottom:16px;
+    transform:translateX(-50%);
+    width:min(94vw, 560px);
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    line-height:1.45;
+    text-shadow: 0 1px 2px rgba(0,0,0,.45);
+    pointer-events:none;
+  }
+  .kbd{
+    display:inline-block;
+    padding:.1rem .42rem;
+    margin:0 .08rem;
+    border-radius:.45rem;
+    background:#242a39;
+    color:#fff;
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,.05);
+    font-weight:700;
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="720" height="900"></canvas>
+
+  <div class="topbar">
+    <button class="btn" id="restartBtn">재시작</button>
+  </div>
+
+  <div class="hud">
+    <div class="card"><div class="label">SCORE</div><div class="value" id="scoreEl">0</div></div>
+    <div class="card"><div class="label">BEST</div><div class="value" id="bestEl">0</div></div>
+  </div>
+
+  <div class="controls">
+    <div>이동: <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> / 스와이프 · 새 게임: <span class="kbd">R</span> · 승리: 2048 도달 · 패배: 이동 불가</div>
+  </div>
+
+  <div class="overlay show" id="overlay">
+    <div class="panel">
+      <h1 class="title">2048</h1>
+      <p class="subtitle">같은 숫자의 타일을 합쳐 2048을 만들어 보세요.<br>움직일 수 없으면 패배합니다.</p>
+      <div class="status" id="statusText">준비 완료</div>
+      <button class="btn" id="startBtn" style="margin-top:10px; pointer-events:auto;">게임 시작</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('scoreEl');
+  const bestEl = document.getElementById('bestEl');
+  const overlay = document.getElementById('overlay');
+  const statusText = document.getElementById('statusText');
+  const restartBtn = document.getElementById('restartBtn');
+  const startBtn = document.getElementById('startBtn');
+
+  const SIZE = 4;
+  const TARGET = 2048;
+  let board, score, best, gameOver, won, started;
+  let anim = [];
+  let lastMoveTime = 0;
+
+  best = Number(localStorage.getItem('best2048') || 0);
+  bestEl.textContent = best;
+
+  function newBoard() {
+    board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+    score = 0;
+    gameOver = false;
+    won = false;
+    started = true;
+    anim = [];
+    spawn();
+    spawn();
+    updateUI();
+    hideOverlay();
+  }
+
+  function updateUI() {
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      bestEl.textContent = best;
+      localStorage.setItem('best2048', String(best));
+    }
+  }
+
+  function hideOverlay() {
+    overlay.classList.remove('show');
+  }
+
+  function showOverlay(title, cls) {
+    statusText.textContent = title;
+    statusText.className = 'status ' + (cls || '');
+    overlay.classList.add('show');
+  }
+
+  function spawn() {
+    const empties = [];
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (board[y][x] === 0) empties.push([x, y]);
+      }
+    }
+    if (!empties.length) return false;
+    const [x, y] = empties[(Math.random() * empties.length) | 0];
+    board[y][x] = Math.random() < 0.9 ? 2 : 4;
+    return true;
+  }
+
+  function canMove() {
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const v = board[y][x];
+        if (v === 0) return true;
+        if (x < SIZE - 1 && v === board[y][x + 1]) return true;
+        if (y < SIZE - 1 && v === board[y + 1][x]) return true;
+      }
+    }
+    return false;
+  }
+
+  function slideLine(line) {
+    const arr = line.filter(v => v !== 0);
+    const result = [];
+    let gained = 0;
+    for (let i = 0; i < arr.length; i++) {
+      if (i < arr.length - 1 && arr[i] === arr[i + 1]) {
+        const merged = arr[i] * 2;
+        result.push(merged);
+        gained += merged;
+        i++;
+      } else {
+        result.push(arr[i]);
+      }
+    }
+    while (result.length < SIZE) result.push(0);
+    return { line: result, gained };
+  }
+
+  function move(dir) {
+    if (gameOver) return false;
+    if (!started) newBoard();
+    const prev = board.map(r => r.slice());
+    let gainedTotal = 0;
+    let changed = false;
+
+    const getRow = y => board[y].slice();
+    const setRow = (y, row) => { board[y] = row.slice(); };
+
+    const getCol = x => board.map(r => r[x]);
+    const setCol = (x, col) => { for (let y = 0; y < SIZE; y++) board[y][x] = col[y]; };
+
+    const process = (getter, setter, reverse=false) => {
+      for (let i = 0; i < SIZE; i++) {
+        let line = getter(i);
+        if (reverse) line.reverse();
+        const { line: out, gained } = slideLine(line);
+        if (reverse) out.reverse();
+        gainedTotal += gained;
+        setter(i, out);
+      }
+    };
+
+    if (dir === 'left') process(getRow, setRow, false);
+    if (dir === 'right') process(getRow, setRow, true);
+    if (dir === 'up') process(getCol, setCol, false);
+    if (dir === 'down') process(getCol, setCol, true);
+
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        if (board[y][x] !== prev[y][x]) changed = true;
+      }
+    }
+
+    if (changed) {
+      score += gainedTotal;
+      updateUI();
+      spawn();
+      if (board.some(row => row.some(v => v >= TARGET)) && !won) {
+        won = true;
+        showOverlay('2048 달성! 승리', 'win');
+      } else if (!canMove()) {
+        gameOver = true;
+        showOverlay('이동 불가! 패배', 'lose');
+      }
+    }
+    lastMoveTime = performance.now();
+    return changed;
+  }
+
+  function restart() {
+    newBoard();
+    won = false;
+    gameOver = false;
+  }
+
+  function drawRoundedRect(x, y, w, h, r) {
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  function tileColor(v) {
+    const map = {
+      0: ['#242a39', '#1c2230'],
+      2: ['#eee4da', '#776e65'],
+      4: ['#ede0c8', '#776e65'],
+      8: ['#f2b179', '#fff8f0'],
+      16: ['#f59563', '#fff8f0'],
+      32: ['#f67c5f', '#fff8f0'],
+      64: ['#f65e3b', '#fff8f0'],
+      128: ['#edcf72', '#fff8f0'],
+      256: ['#edcc61', '#fff8f0'],
+      512: ['#edc850', '#fff8f0'],
+      1024: ['#edc53f', '#fff8f0'],
+      2048: ['#edc22e', '#fff8f0']
+    };
+    return map[v] || ['#3a4157', '#fff'];
+  }
+
+  function draw() {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+
+    const pad = 30;
+    const boardTop = 140;
+    const boardSize = Math.min(w - pad*2, h - boardTop - 40);
+    const gap = 14;
+    const cell = (boardSize - gap * (SIZE + 1)) / SIZE;
+    const bx = (w - boardSize) / 2;
+    const by = boardTop;
+
+    const bg = ctx.createLinearGradient(0, by, 0, by + boardSize);
+    bg.addColorStop(0, '#1a2030');
+    bg.addColorStop(1, '#141923');
+    drawRoundedRect(bx, by, boardSize, boardSize, 26);
+    ctx.fillStyle = bg;
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cx = bx + gap + x * (cell + gap);
+        const cy = by + gap + y * (cell + gap);
+        drawRoundedRect(cx, cy, cell, cell, 18);
+        ctx.fill();
+      }
+    }
+
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const v = board[y][x];
+        if (!v) continue;
+        const cx = bx + gap + x * (cell + gap);
+        const cy = by + gap + y * (cell + gap);
+        const scale = v >= 1024 ? 0.94 : v >= 128 ? 0.96 : 1;
+        const tw = cell * scale, th = cell * scale;
+        const tx = cx + (cell - tw)/2, ty = cy + (cell - th)/2;
+        const [fill, text] = tileColor(v);
+        const grad = ctx.createLinearGradient(tx, ty, tx + tw, ty + th);
+        grad.addColorStop(0, fill);
+        grad.addColorStop(1, shade(fill, -12));
+        drawRoundedRect(tx, ty, tw, th, 18);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.shadowColor = 'rgba(0,0,0,.18)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 4;
+        ctx.fillStyle = 'rgba(255,255,255,.06)';
+        drawRoundedRect(tx+1, ty+1, tw-2, th-2, 17);
+        ctx.strokeStyle = 'rgba(255,255,255,.08)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+
+        ctx.fillStyle = text;
+        let fs = v < 128 ? cell * 0.44 : v < 1024 ? cell * 0.36 : cell * 0.30;
+        ctx.font = `900 ${fs}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(v), tx + tw/2, ty + th/2 + 1);
+      }
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,.12)';
+    ctx.font = '700 14px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('2048 SLIDE MERGE', w/2, 108);
+
+    if (!started) {
+      ctx.fillStyle = 'rgba(255,255,255,.08)';
+      ctx.font = '600 18px system-ui, sans-serif';
+      ctx.fillText('아래 버튼 또는 방향키로 시작', w/2, h - 70);
+    }
+  }
+
+  function shade(hex, amt) {
+    const m = hex.replace('#','').match(/.{2}/g).map(x => parseInt(x,16));
+    const c = m.map(v => Math.max(0, Math.min(255, v + amt)));
+    return '#' + c.map(v => v.toString(16).padStart(2,'0')).join('');
+  }
+
+  function loop() {
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(k)) e.preventDefault();
+    if (k === 'r' || k === 'R') return restart();
+    if (k === 'ArrowLeft') move('left');
+    else if (k === 'ArrowRight') move('right');
+    else if (k === 'ArrowUp') move('up');
+    else if (k === 'ArrowDown') move('down');
+  }, { passive:false });
+
+  let touchX = 0, touchY = 0, touching = false;
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchX = t.clientX; touchY = t.clientY; touching = true;
+  }, { passive:true });
+  canvas.addEventListener('touchend', (e) => {
+    if (!touching) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchX;
+    const dy = t.clientY - touchY;
+    touching = false;
+    if (Math.hypot(dx, dy) < 18) return;
+    if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+    else move(dy > 0 ? 'down' : 'up');
+  }, { passive:true });
+
+  restartBtn.addEventListener('click', restart);
+  startBtn.addEventListener('click', () => {
+    if (!started) newBoard();
+    else hideOverlay();
+  });
+
+  function resize() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const cssW = Math.min(window.innerWidth * 0.94, 560);
+    const cssH = Math.min(window.innerHeight * 0.94, cssW * 1.25);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  showOverlay('준비 완료', '');
+  loop();
+})();
+</script>
+</body>
+</html>
