@@ -249,6 +249,13 @@
         state.pathSet.add(`${x},${y}`);
       }
     }
+    // 코너에서 같은 칸이 중복 push 되어 '길이 0' 구간이 생기면 적이 영원히 멈춘다 → 연속 중복 제거
+    const dedup = [];
+    for (const p of state.path) {
+      const last = dedup[dedup.length - 1];
+      if (!last || last[0] !== p[0] || last[1] !== p[1]) dedup.push(p);
+    }
+    state.path = dedup;
   }
 
   function cellToCenter(c,r){
@@ -451,6 +458,7 @@
       const a = cellToCenter(cx,cy);
       const b = cellToCenter(nx,ny);
       const vx = b.x - a.x, vy = b.y - a.y;
+      if (vx === 0 && vy === 0) { e.seg++; e.x = b.x; e.y = b.y; continue; }  // 안전장치: 길이 0 구간 건너뜀
       const len = Math.hypot(vx,vy) || 1;
       const dirx = vx / len, diry = vy / len;
       const slowFactor = e.slow > 0 ? 0.55 : 1;
