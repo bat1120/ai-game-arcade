@@ -156,8 +156,8 @@
       return;
     }
     const guess = currentGuess();
-    if (!WORDS.includes(guess.toLowerCase())) {
-      setMessage('사전에 없는 단어입니다. 다른 단어를 시도하세요.');
+    if (!/^[A-Za-z]{5}$/.test(guess)) {
+      setMessage('5글자 영어 단어만 입력하세요.');
       state.shakeRow = state.row;
       state.shakeUntil = performance.now() + 400;
       return;
