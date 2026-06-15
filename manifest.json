@@ -20,7 +20,8 @@
   {
     "slug": "idle-forge",
     "title": "IDLE FORGE",
-    "score": 88
+    "score": 88,
+    "fun": 62
   },
   {
     "slug": "merge-2048",
