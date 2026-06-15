@@ -380,7 +380,7 @@
   function commitGuess() {
     const guess = guesses[row].join('');
     if (guess.length < 5) return updateMessage('Not enough letters.', 900), setRowShake(row);
-    if (!WORDS.includes(guess)) return updateMessage('Word not in list.', 1100), setRowShake(row);
+    if (!/^[A-Za-z]{5}$/.test(guess)) return updateMessage('5글자 영어 단어만 입력하세요.', 1100), setRowShake(row);
     const evals = evaluateGuess(guess);
     for (let i=0;i<5;i++) states[row][i] = evals[i];
     for (let i=0;i<5;i++) updateKeyColors(guess[i], evals[i]);
