@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Orbit Swap Rush</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 35%, #121a34 0%, #070b16 45%, #03050a 100%);
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      color: #eaf2ff;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: auto;
+    }
+    .hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+    .topbar, .bottombar {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .panel {
+      pointer-events: none;
+      background: rgba(7, 12, 24, 0.42);
+      border: 1px solid rgba(170, 205, 255, 0.14);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter: blur(8px);
+      border-radius: 14px;
+      padding: 10px 12px;
+      min-width: 150px;
+    }
+    .statrow {
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 4px 14px;
+      font-size: 14px;
+      line-height: 1.15;
+    }
+    .label { color: #9eb6de; }
+    .value { color: #ffffff; text-align: right; font-weight: 700; }
+    .title {
+      font-size: 15px;
+      letter-spacing: 0.8px;
+      font-weight: 800;
+      color: #d7e8ff;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .help {
+      max-width: 380px;
+      font-size: 13px;
+      line-height: 1.35;
+      color: #bfd0ef;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, rgba(8,12,24,0.18), rgba(0,0,0,0.66));
+      pointer-events: auto;
+    }
+    .overlay.show { display: flex; }
+    .card {
+      width: min(92vw, 520px);
+      border-radius: 20px;
+      background: rgba(8, 14, 28, 0.92);
+      border: 1px solid rgba(173, 206, 255, 0.18);
+      box-shadow: 0 20px 70px rgba(0,0,0,0.45);
+      padding: 22px;
+      text-align: center;
+    }
+    .big {
+      font-size: 42px;
+      font-weight: 900;
+      margin: 4px 0 8px;
+      letter-spacing: 1px;
+    }
+    .sub {
+      color: #c7d8f6;
+      margin-bottom: 14px;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 12px 18px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #78b7ff, #4c86ff);
+      color: white;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(76,134,255,0.32);
+    }
+    .corner {
+      position: fixed;
+      right: 12px;
+      bottom: 12px;
+      font-size: 12px;
+      color: rgba(210,225,255,0.8);
+      background: rgba(7, 12, 24, 0.3);
+      border: 1px solid rgba(170,205,255,0.1);
+      padding: 7px 10px;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="panel">
+      <div class="title">Orbit Swap Rush</div>
+      <div class="statrow">
+        <div class="label">점수</div><div class="value" id="score">0</div>
+        <div class="label">최고</div><div class="value" id="best">0</div>
+        <div class="label">거리</div><div class="value" id="distance">0m</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="statrow">
+        <div class="label">속도</div><div class="value" id="speed">0.0</div>
+        <div class="label">콤보</div><div class="value" id="combo">x1.0</div>
+        <div class="label">체력</div><div class="value" id="hp">3</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="statrow">
+        <div class="label">시간</div><div class="value" id="time">60.0</div>
+        <div class="label">예고</div><div class="value" id="hint">—</div>
+        <div class="label">코인</div><div class="value" id="coins">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <div class="panel help">
+      <b>조작:</b> 클릭/탭 한 번으로 안쪽↔바깥쪽 슬롯 즉시 스왑.<br/>
+      <b>목표:</b> 제한 시간 동안 장애물을 피하고 코인을 먹어 최대 거리와 콤보를 올리세요.<br/>
+      <b>보상:</b> 근접 통과, 연속 회피, 코인 수집으로 점수가 크게 증가합니다.
+    </div>
+    <div class="panel help" style="text-align:right;">
+      <b>재시작:</b> 패배 후 탭 또는 <span style="color:#fff">R</span><br/>
+      최고점수는 저장됩니다.
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <div class="big" id="overTitle">GAME OVER</div>
+    <div class="sub" id="overText">충돌했습니다.</div>
+    <div class="sub" id="finalText"></div>
+    <div class="btn">탭 / 클릭 / R 로 재시작</div>
+  </div>
+</div>
+
+<div class="corner">한 번의 탭으로 슬롯 스왑 · 점점 빨라지는 원형 질주</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const ui = {
+    score: document.getElementById('score'),
+    best: document.getElementById('best'),
+    distance: document.getElementById('distance'),
+    speed: document.getElementById('speed'),
+    combo: document.getElementById('combo'),
+    hp: document.getElementById('hp'),
+    time: document.getElementById('time'),
+    hint: document.getElementById('hint'),
+    coins: document.getElementById('coins'),
+    overlay: document.getElementById('overlay'),
+    overText: document.getElementById('overText'),
+    finalText: document.getElementById('finalText')
+  };
+
+  let W=0,H=0, DPR=1;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, devicePixelRatio || 1));
+    W = canvas.width = Math.floor(innerWidth * DPR);
+    H = canvas.height = Math.floor(innerHeight * DPR);
+  }
+  addEventListener('resize', resize, {passive:true});
+  resize();
+
+  const bestKey = 'orbit_swap_rush_best';
+  let best = +localStorage.getItem(bestKey) || 0;
+
+  const state = {
+    running: true,
+    over: false,
+    time: 60,
+    score: 0,
+    distance: 0,
+    coins: 0,
+    combo: 1,
+    comboTimer: 0,
+    hp: 3,
+    lane: 0,
+    laneFlash: 0,
+    speed: 220,
+    t: 0,
+    spawn: 0,
+    coinSpawn: 0,
+    shake: 0,
+    nextPreview: [],
+    segments: [],
+    particles: [],
+    objs: []
+  };
+
+  function reset(){
+    state.running = true;
+    state.over = false;
+    state.time = 60;
+    state.score = 0;
+    state.distance = 0;
+    state.coins = 0;
+    state.combo = 1;
+    state.comboTimer = 0;
+    state.hp = 3;
+    state.lane = 0;
+    state.laneFlash = 0;
+    state.speed = 220;
+    state.t = 0;
+    state.spawn = 0.8;
+    state.coinSpawn = 1.2;
+    state.shake = 0;
+    state.nextPreview = [];
+    state.particles = [];
+    state.objs = [];
+    state.segments = [];
+    for(let i=0;i<220;i++){
+      state.segments.push(i * Math.PI * 2 / 220);
+    }
+    ui.overlay.classList.remove('show');
+  }
+  reset();
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  function addParticles(x,y,n,color,sp=1){
+    for(let i=0;i<n;i++){
+      state.particles.push({
+        x,y,
+        vx: Math.cos(i/n*Math.PI*2 + Math.random()) * rand(40,190) * sp,
+        vy: Math.sin(i/n*Math.PI*2 + Math.random()) * rand(40,190) * sp,
+        life: rand(0.25,0.7),
+        r: rand(1.2,3.8),
+        color
+      });
+    }
+  }
+
+  function spawnObstacle(){
+    const typeRoll = Math.random();
+    let type = 'block';
+    if (typeRoll < 0.18) type = 'spike';
+    else if (typeRoll < 0.36) type = 'bar';
+    else if (typeRoll < 0.50) type = 'double';
+    const lane = Math.random() < 0.5 ? -1 : 1;
+    state.objs.push({
+      type,
+      lane,
+      ang: -0.2,
+      passed: false,
+      near: false,
+      hp: 1,
+      hue: type === 'spike' ? 12 : type === 'bar' ? 210 : 300
+    });
+  }
+
+  function spawnCoin(){
+    const lane = Math.random() < 0.5 ? -1 : 1;
+    state.objs.push({
+      type: 'coin',
+      lane,
+      ang: -0.2,
+      passed: false,
+      near: false,
+      hue: 48
+    });
+  }
+
+  function doSwap(){
+    if(state.over) { reset(); return; }
+    state.lane *= -1;
+    state.laneFlash = 1;
+    addParticles(W*0.5, H*0.5, 10, state.lane > 0 ? '#7be7ff' : '#ffd36d', 0.7);
+  }
+
+  addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    doSwap();
+  }, {passive:false});
+  addEventListener('keydown', (e) => {
+    if(e.key === 'r' || e.key === 'R') { reset(); }
+    if(e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown') doSwap();
+  });
+
+  function update(dt){
+    if(!state.running) return;
+    state.t += dt;
+    if(!state.over) state.time -= dt;
+
+    const difficulty = 1 + Math.max(0, (60 - state.time)) * 0.03;
+    state.speed = 220 + state.t * 7.5 + (60 - state.time) * 8.0;
+    const orbit = Math.min(W,H) * 0.24;
+    const centerX = W*0.5, centerY = H*0.5;
+
+    if(state.comboTimer > 0) state.comboTimer -= dt;
+    else state.combo = Math.max(1, state.combo - dt*0.7);
+
+    state.spawn -= dt * difficulty;
+    state.coinSpawn -= dt * (1.05 + difficulty*0.2);
+
+    while(state.spawn <= 0){
+      spawnObstacle();
+      state.spawn += rand(0.72, 1.05) / difficulty;
+      if(Math.random() < 0.22 + (60-state.time)*0.004) spawnObstacle();
+    }
+    while(state.coinSpawn <= 0){
+      spawnCoin();
+      state.coinSpawn += rand(0.9, 1.5);
+    }
+
+    for(const o of state.objs){
+      o.ang += dt * state.speed / orbit;
+      const d = Math.abs(o.ang - Math.PI/2);
+      if(d < 0.22) o.near = true;
+      if(!o.passed && o.ang > Math.PI/2){
+        o.passed = true;
+        if(o.type !== 'coin'){
+          state.score += Math.floor(8 * state.combo);
+          state.combo = Math.min(9.9, state.combo + 0.12);
+          state.comboTimer = 0.8;
+        }
+      }
+    }
+
+    const playerAng = Math.PI/2;
+    const playerLane = state.lane;
+    for(let i=state.objs.length-1;i>=0;i--){
+      const o = state.objs[i];
+      if(o.ang > Math.PI*1.22){
+        state.objs.splice(i,1);
+        continue;
+      }
+      const angDiff = Math.abs(o.ang - playerAng);
+      const hit = angDiff < 0.14 && o.lane === playerLane;
+      const near = angDiff < 0.25 && o.lane === playerLane;
+      if(near && !o._nearAwarded && o.type !== 'coin'){
+        o._nearAwarded = true;
+        state.score += Math.floor(3 * state.combo);
+        state.combo = Math.min(9.9, state.combo + 0.08);
+        addParticles(centerX + Math.cos(o.ang)*orbit, centerY + Math.sin(o.ang)*orbit, 6, '#9ed7ff', 0.5);
+      }
+      if(hit){
+        if(o.type === 'coin'){
+          state.coins++;
+          state.score += Math.floor(24 * state.combo + 10);
+          state.combo = Math.min(9.9, state.combo + 0.35);
+          state.comboTimer = 1.1;
+          state.time = Math.min(99, state.time + 0.35);
+          addParticles(centerX + Math.cos(o.ang)*orbit, centerY + Math.sin(o.ang)*orbit, 16, '#ffd86a', 0.9);
+          state.objs.splice(i,1);
+          continue;
+        } else {
+          state.hp -= 1;
+          state.shake = 0.5;
+          state.combo = 1;
+          state.comboTimer = 0;
+          addParticles(centerX + Math.cos(o.ang)*orbit, centerY + Math.sin(o.ang)*orbit, 28, '#ff6d7a', 1.2);
+          state.objs.splice(i,1);
+          if(state.hp <= 0){
+            state.over = true;
+            state.running = false;
+            best = Math.max(best, Math.floor(state.score + state.distance * 2));
+            localStorage.setItem(bestKey, String(best));
+            ui.overlay.classList.add('show');
+            ui.overText.textContent = '충돌했습니다.';
+            ui.finalText.textContent = `점수 ${Math.floor(state.score)} · 거리 ${Math.floor(state.distance)}m · 코인 ${state.coins}`;
+          }
+          break;
+        }
+      }
+      if(o.type === 'coin' && o.passed && !o.collected && angDiff < 0.12 && o.lane !== playerLane){
+        o.collected = true;
+      }
+    }
+
+    if(!state.over && state.time <= 0){
+      state.over = true;
+      state.running = false;
+      best = Math.max(best, Math.floor(state.score + state.distance * 2));
+      localStorage.setItem(bestKey, String(best));
+      ui.overlay.classList.add('show');
+      ui.overText.textContent = '시간 종료!';
+      ui.finalText.textContent = `점수 ${Math.floor(state.score)} · 거리 ${Math.floor(state.distance)}m · 코인 ${state.coins}`;
+    }
+
+    state.distance += dt * state.speed * 0.06;
+    state.shake = Math.max(0, state.shake - dt * 1.4);
+    state.laneFlash = Math.max(0, state.laneFlash - dt * 2.5);
+
+    for(let i=state.particles.length-1;i>=0;i--){
+      const p = state.particles[i];
+      p.life -= dt;
+      p.x += p.vx*dt;
+      p.y += p.vy*dt;
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+      if(p.life <= 0) state.particles.splice(i,1);
+    }
+
+    const baseScore = state.score + Math.floor(state.distance * 2);
+    if(baseScore > best) {
+      best = baseScore;
+      localStorage.setItem(bestKey, String(best));
+    }
+
+    ui.score.textContent = Math.floor(state.score);
+    ui.best.textContent = best;
+    ui.distance.textContent = Math.floor(state.distance) + 'm';
+    ui.speed.textContent = state.speed.toFixed(0);
+    ui.combo.textContent = 'x' + state.combo.toFixed(1);
+    ui.hp.textContent = '❤'.repeat(state.hp) || '0';
+    ui.time.textContent = Math.max(0, state.time).toFixed(1);
+    ui.coins.textContent = state.coins;
+    const hints = state.objs.filter(o => o.type !== 'coin').slice(0, 3).map(o => o.type === 'spike' ? '▲' : o.type === 'bar' ? '▬' : '◆');
+    ui.hint.textContent = hints.length ? hints.join(' ') : '—';
+  }
+
+  function draw(){
+    const shakeX = (Math.random()-0.5) * state.shake * 16 * DPR;
+    const shakeY = (Math.random()-0.5) * state.shake * 16 * DPR;
+    ctx.setTransform(1,0,0,1,shakeX,shakeY);
+    ctx.clearRect(-50,-50,W+100,H+100);
+
+    const g = ctx.createRadialGradient(W*0.5,H*0.46,20,W*0.5,H*0.46,Math.max(W,H)*0.62);
+    g.addColorStop(0, '#16214a');
+    g.addColorStop(0.55, '#08101f');
+    g.addColorStop(1, '#020409');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    const cx = W*0.5, cy = H*0.5;
+    const orbit = Math.min(W,H) * 0.24;
+    const inner = orbit * 0.74, outer = orbit * 1.12;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = 'rgba(170,205,255,0.12)';
+    ctx.lineWidth = 2 * DPR;
+    for(let r of [inner, orbit, outer]){
+      ctx.beginPath();
+      ctx.arc(0,0,r,0,Math.PI*2);
+      ctx.stroke();
+    }
+    for(let i=0;i<60;i++){
+      const a = i/60*Math.PI*2 + state.t*0.1;
+      const rr = orbit + Math.sin(i*13.1)*2*DPR;
+      ctx.strokeStyle = i%5===0 ? 'rgba(190,220,255,0.12)' : 'rgba(190,220,255,0.05)';
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*inner, Math.sin(a)*inner);
+      ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    const makePos = (ang,lane) => {
+      const r = orbit + lane * orbit * 0.19;
+      return {
+        x: cx + Math.cos(ang) * r,
+        y: cy + Math.sin(ang) * r
+      };
+    };
+
+    for(const o of state.objs){
+      const pos = makePos(o.ang, o.lane);
+      ctx.save();
+      ctx.translate(pos.x, pos.y);
+      ctx.rotate(o.ang + Math.PI/2);
+      if(o.type === 'coin'){
+        ctx.fillStyle = '#ffd95b';
+        ctx.shadowColor = '#ffd95b';
+        ctx.shadowBlur = 16 * DPR;
+        ctx.beginPath();
+        ctx.arc(0,0,8*DPR,0,Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#fff3b0';
+        ctx.lineWidth = 2 * DPR;
+        ctx.beginPath();
+        ctx.arc(0,0,5*DPR,0,Math.PI*2);
+        ctx.stroke();
+      } else {
+        const pulse = o.near ? 1.25 : 1;
+        ctx.shadowColor = o.type === 'spike' ? '#ff6d7a' : o.type === 'bar' ? '#6dbbff' : '#d56dff';
+        ctx.shadowBlur = 16 * DPR;
+        ctx.fillStyle = o.type === 'spike' ? '#ff6d7a' : o.type === 'bar' ? '#6dbbff' : '#d56dff';
+        if(o.type === 'spike'){
+          ctx.beginPath();
+          ctx.moveTo(-10*DPR*pulse, 10*DPR*pulse);
+          ctx.lineTo(0, -12*DPR*pulse);
+          ctx.lineTo(10*DPR*pulse, 10*DPR*pulse);
+          ctx.closePath();
+          ctx.fill();
+        } else if(o.type === 'bar'){
+          ctx.fillRect(-14*DPR*pulse, -5*DPR*pulse, 28*DPR*pulse, 10*DPR*pulse);
+        } else {
+          ctx.beginPath();
+          ctx.arc(0,0,10*DPR*pulse,0,Math.PI*2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.35)';
+          ctx.beginPath();
+          ctx.arc(-3*DPR, -3*DPR, 3*DPR,0,Math.PI*2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    const p = makePos(Math.PI/2, state.lane);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    const bob = Math.sin(state.t*10) * 2.5 * DPR;
+    ctx.translate(0, bob);
+    ctx.shadowColor = state.lane > 0 ? '#7be7ff' : '#ffd36d';
+    ctx.shadowBlur = 24 * DPR;
+    ctx.fillStyle = state.lane > 0 ? '#7be7ff' : '#ffd36d';
+    ctx.beginPath();
+    ctx.arc(0,0,12*DPR,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0b1020';
+    ctx.beginPath();
+    ctx.arc(4*DPR,-3*DPR,3.2*DPR,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-3*DPR,-4*DPR,3.8*DPR,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 2 * DPR;
+    ctx.beginPath();
+    ctx.arc(0,0,15*DPR,0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+
+    if(state.laneFlash > 0){
+      ctx.fillStyle = `rgba(120,183,255,${0.06*state.laneFlash})`;
+      ctx.beginPath();
+      ctx.arc(cx,cy,outer*1.1,0,Math.PI*2);
+      ctx.fill();
+    }
+
+    for(const pr of state.particles){
+      ctx.globalAlpha = clamp(pr.life*1.8,0,1);
+      ctx.fillStyle = pr.color;
+      ctx.beginPath();
+      ctx.arc(pr.x, pr.y, pr.r * DPR, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if(state.over){
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
