@@ -2,17 +2,20 @@
   {
     "slug": "daily-word",
     "title": "DAILY WORD",
-    "score": 88
+    "score": 88,
+    "fun": 8
   },
   {
     "slug": "echo-rift-survivor",
     "title": "ECHO RIFT",
-    "score": 81
+    "score": 81,
+    "fun": 28
   },
   {
     "slug": "gem-match",
     "title": "GEM MATCH",
-    "score": 90
+    "score": 90,
+    "fun": 58
   },
   {
     "slug": "idle-forge",
@@ -22,12 +25,14 @@
   {
     "slug": "merge-2048",
     "title": "MERGE 2048",
-    "score": 84
+    "score": 84,
+    "fun": 54
   },
   {
     "slug": "neon-dash",
     "title": "NEON DASH",
-    "score": 84
+    "score": 84,
+    "fun": 68
   },
   {
     "slug": "orbit-swap-sprint",
@@ -38,11 +43,13 @@
   {
     "slug": "tower-defense",
     "title": "TOWER LINE",
-    "score": 78
+    "score": 78,
+    "fun": 52
   },
   {
     "slug": "zombie-survival",
     "title": "DEAD HOUR",
-    "score": 86
+    "score": 86,
+    "fun": 5
   }
 ]
