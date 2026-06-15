@@ -428,7 +428,7 @@
 
   document.addEventListener('keydown', e => {
     const k = e.key;
-    if (k === 'r' || k === 'R') return restartGame();
+    if ((k === 'r' || k === 'R') && gameOver) return restartGame();  // 'r'은 게임오버 때만 재시작(플레이 중엔 글자 입력)
     if (k === 'Enter') return handleInput('ENTER');
     if (k === 'Backspace') return handleInput('BACKSPACE');
     if (/^[a-zA-Z]$/.test(k)) return handleInput(k.toUpperCase());
