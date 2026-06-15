@@ -1,237 +1,185 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Deadlight Outbreak</title>
-<style>
-  html, body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background:
-      radial-gradient(circle at 50% 45%, #13222a 0%, #081115 48%, #040608 100%);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    color: #ecf7ff;
-    user-select: none;
-    touch-action: none;
-  }
-  canvas { display:block; width:100vw; height:100vh; }
-  .ui { position: fixed; inset: 0; pointer-events: none; }
-  .hud {
-    position: absolute;
-    top: 10px; left: 10px;
-    display: flex; flex-wrap: wrap; gap: 8px;
-    font-weight: 800;
-    text-shadow: 0 2px 4px rgba(0,0,0,.6);
-  }
-  .pill {
-    background: rgba(8, 16, 20, 0.62);
-    border: 1px solid rgba(136, 220, 255, 0.18);
-    border-radius: 999px;
-    padding: 7px 11px;
-    box-shadow: inset 0 0 16px rgba(0,0,0,.14);
-    backdrop-filter: blur(4px);
-  }
-  .barWrap {
-    display: inline-block;
-    width: 180px;
-    height: 12px;
-    margin-left: 6px;
-    background: rgba(0,0,0,.45);
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 999px;
-    overflow: hidden;
-    vertical-align: middle;
-  }
-  .bar {
-    display:block;
-    height: 100%;
-    width: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #42ff95 0%, #ffd94a 52%, #ff5c5c 100%);
-  }
-  .overlay {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%) scale(1);
-    width: min(520px, 88vw);
-    padding: 16px 18px 14px;
-    background: rgba(7, 12, 15, 0.56);
-    border: 1px solid rgba(120, 220, 255, 0.16);
-    border-radius: 16px;
-    box-shadow: 0 18px 48px rgba(0,0,0,.36);
-    backdrop-filter: blur(6px);
-    text-align: center;
-    opacity: 1;
-    transition: opacity .35s ease, transform .35s ease;
-    pointer-events: auto;
-  }
-  .overlay.small {
-    width: min(410px, 82vw);
-    padding: 14px 16px 12px;
-    background: rgba(7, 12, 15, 0.46);
-  }
-  .overlay.hide {
-    opacity: 0;
-    transform: translate(-50%, -56%) scale(0.98);
-    pointer-events: none;
-  }
-  .title {
-    font-size: 30px;
-    font-weight: 950;
-    letter-spacing: .5px;
-    margin: 0 0 8px;
-    color: #f2fbff;
-  }
-  .sub {
-    font-size: 13px;
-    line-height: 1.58;
-    opacity: .94;
-    margin: 0;
-  }
-  .hint {
-    margin-top: 10px;
-    font-size: 12px;
-    opacity: .88;
-  }
-  .btnRow {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  button {
-    pointer-events: auto;
-    border: 0;
-    border-radius: 12px;
-    padding: 10px 14px;
-    color: #fff;
-    font-weight: 900;
-    cursor: pointer;
-    background: linear-gradient(180deg, #6fe6ff, #2c86ff);
-    box-shadow: 0 10px 18px rgba(33,124,255,.24);
-  }
-  button.secondary {
-    background: linear-gradient(180deg, #324152, #1a2430);
-    box-shadow: 0 10px 18px rgba(0,0,0,.2);
-  }
-  .perkOverlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,.42);
-    display: none;
-    pointer-events: auto;
-  }
-  .perkPanel {
-    position: absolute;
-    left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    width: min(980px, 94vw);
-    background: rgba(6, 11, 15, 0.95);
-    border: 1px solid rgba(120,220,255,.16);
-    border-radius: 20px;
-    box-shadow: 0 22px 70px rgba(0,0,0,.55);
-    padding: 18px;
-  }
-  .perkHead {
-    display:flex; justify-content: space-between; align-items: baseline; gap: 12px;
-    margin-bottom: 12px;
-  }
-  .perkHead b { font-size: 22px; }
-  .perkHead span { opacity: .88; font-size: 13px; }
-  .perkGrid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-  .perk {
-    background: linear-gradient(180deg, rgba(28,40,50,.98), rgba(12,18,24,.98));
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 16px;
-    padding: 14px;
-    cursor: pointer;
-    min-height: 132px;
-    transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
-  }
-  .perk:hover {
-    transform: translateY(-2px);
-    border-color: rgba(106,230,255,.55);
-    box-shadow: 0 0 0 1px rgba(106,230,255,.15) inset;
-  }
-  .perkTag {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 900;
-    color: #99efff;
-    background: rgba(106,230,255,.12);
-    padding: 4px 8px;
-    border-radius: 999px;
-    margin-bottom: 10px;
-  }
-  .perk h3 { margin: 0 0 7px; font-size: 18px; }
-  .perk p { margin: 0; font-size: 13px; line-height: 1.45; opacity: .88; }
-  .fadeBanner {
-    position: absolute;
-    top: 62px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 8px 12px;
-    background: rgba(6, 11, 15, .48);
-    border: 1px solid rgba(120,220,255,.12);
-    border-radius: 999px;
-    font-size: 12px;
-    opacity: 0;
-    transition: opacity .25s ease;
-    pointer-events: none;
-  }
-  .fadeBanner.show { opacity: 1; }
-  @media (max-width: 760px) {
-    .perkGrid { grid-template-columns: 1fr; }
-    .barWrap { width: 126px; }
-    .title { font-size: 26px; }
-    .overlay { width: min(500px, 92vw); }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Zombie Outbreak: Last Stand</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #071015;
+      color: #e6f2ff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    #game {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at center, #0c1b22 0%, #071015 45%, #04090c 100%);
+    }
+    .hud {
+      position: fixed;
+      left: 0;
+      top: 0;
+      right: 0;
+      pointer-events: none;
+      padding: 12px 14px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 700;
+      text-shadow: 0 2px 0 rgba(0,0,0,.5);
+    }
+    .panel {
+      background: rgba(4, 10, 13, 0.45);
+      border: 1px solid rgba(141, 213, 255, 0.14);
+      border-radius: 12px;
+      padding: 10px 12px;
+      backdrop-filter: blur(4px);
+    }
+    .small {
+      font-size: 12px;
+      opacity: 0.9;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+    .right {
+      text-align: right;
+    }
+    .centerOverlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .card {
+      pointer-events: auto;
+      width: min(92vw, 620px);
+      background: rgba(6, 12, 16, 0.82);
+      border: 1px solid rgba(141, 213, 255, 0.18);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      padding: 18px 18px 14px;
+      text-align: center;
+    }
+    .title {
+      font-size: clamp(28px, 4vw, 46px);
+      margin: 0 0 6px;
+      letter-spacing: 1px;
+      color: #dff3ff;
+    }
+    .subtitle {
+      margin: 0 0 12px;
+      color: #98c7df;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    .btnrow {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    button {
+      border: 0;
+      background: linear-gradient(180deg, #5fd0ff, #2aa5da);
+      color: #041017;
+      font-weight: 900;
+      border-radius: 12px;
+      padding: 12px 16px;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(42,165,218,.25);
+    }
+    button:active { transform: translateY(1px); }
+    .perkGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .perk {
+      background: rgba(14, 27, 34, 0.95);
+      border: 1px solid rgba(141, 213, 255, 0.18);
+      border-radius: 14px;
+      padding: 12px 10px;
+      cursor: pointer;
+      text-align: left;
+      min-height: 116px;
+      color: #e9f7ff;
+    }
+    .perk:hover { border-color: rgba(95,208,255,.7); }
+    .perk h3 {
+      margin: 0 0 6px;
+      font-size: 17px;
+      color: #7fe0ff;
+    }
+    .perk p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #bfd6e1;
+    }
+    .hidden { display:none !important; }
+    .footerHint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #8fb3c4;
+    }
+  </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div class="ui">
-  <div class="hud">
-    <div class="pill">HP <span id="hpText">100</span><span class="barWrap"><span id="hpBar" class="bar"></span></span></div>
-    <div class="pill">점수 <span id="scoreText">0</span></div>
-    <div class="pill">웨이브 <span id="waveText">1</span></div>
-    <div class="pill">처치 <span id="killText">0</span></div>
-    <div class="pill">콤보 <span id="comboText">0</span></div>
-    <div class="pill">최고 <span id="bestText">0</span></div>
-  </div>
 
-  <div id="startOverlay" class="overlay small">
-    <div class="title">Deadlight Outbreak</div>
-    <p class="sub">
-      WASD / 방향키 이동 · 마우스 방향 자동 사격<br/>
-      클릭/터치로도 발사 가능 · 좀비를 쓰러뜨려 웨이브를 넘기세요.<br/>
-      웨이브 종료마다 3택1 업그레이드를 선택합니다.
+<div class="hud">
+  <div class="panel" id="hudLeft">
+    <div>체력: <span id="hpText">100</span> / <span id="hpMaxText">100</span></div>
+    <div>점수: <span id="scoreText">0</span> · 최고: <span id="bestText">0</span></div>
+  </div>
+  <div class="panel right" id="hudRight">
+    <div>웨이브: <span id="waveText">1</span></div>
+    <div>처치: <span id="killsText">0</span> · 콤보: <span id="comboText">x1.0</span></div>
+  </div>
+</div>
+
+<div class="centerOverlay" id="menuOverlay">
+  <div class="card">
+    <h1 class="title">Zombie Outbreak: Last Stand</h1>
+    <p class="subtitle">
+      몰려오는 좀비를 처치하며 최대한 오래 버티세요. <br>
+      이동: WASD / 방향키 · 조준: 마우스 · 사격: 자동(클릭 유지 시 연사) · 재시작: R
     </p>
-    <div class="hint">목표: 오래 살아남고 최고점수를 갱신하세요. 사망 시 <b>R</b>로 재시작.</div>
-    <div class="btnRow">
-      <button id="startBtn">시작</button>
-      <button id="restartBtn" class="secondary">재시작</button>
+    <div class="btnrow">
+      <button id="startBtn">게임 시작</button>
     </div>
+    <div class="footerHint">처음 몇 초는 약하게 시작합니다. 웨이브가 오를수록 더 빠르고 더 많이 몰려옵니다.</div>
   </div>
+</div>
 
-  <div id="banner" class="fadeBanner">웨이브 시작!</div>
+<div class="centerOverlay hidden" id="perkOverlay">
+  <div class="card">
+    <h2 class="title" style="font-size:clamp(24px,3vw,34px); margin-bottom:8px;">업그레이드 선택</h2>
+    <p class="subtitle">강화 3개 중 하나를 고르세요. 빌드가 바뀝니다.</p>
+    <div class="perkGrid" id="perkGrid"></div>
+    <div class="footerHint">선택 후 전투가 계속됩니다. 빠르게 골라야 생존에 유리합니다.</div>
+  </div>
+</div>
 
-  <div id="perkOverlay" class="perkOverlay">
-    <div class="perkPanel">
-      <div class="perkHead">
-        <b>업그레이드 선택</b>
-        <span>하나를 고르면 다음 웨이브로 진행합니다</span>
-      </div>
-      <div id="perkGrid" class="perkGrid"></div>
+<div class="centerOverlay hidden" id="gameOverOverlay">
+  <div class="card">
+    <h1 class="title">사망</h1>
+    <p class="subtitle">최종 점수: <span id="finalScoreText">0</span> · 최고 점수: <span id="finalBestText">0</span></p>
+    <div class="btnrow">
+      <button id="restartBtn">다시 시작 (R)</button>
     </div>
   </div>
 </div>
@@ -240,577 +188,397 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-
   const hpText = document.getElementById('hpText');
-  const hpBar = document.getElementById('hpBar');
+  const hpMaxText = document.getElementById('hpMaxText');
   const scoreText = document.getElementById('scoreText');
-  const waveText = document.getElementById('waveText');
-  const killText = document.getElementById('killText');
-  const comboText = document.getElementById('comboText');
   const bestText = document.getElementById('bestText');
-  const startOverlay = document.getElementById('startOverlay');
+  const waveText = document.getElementById('waveText');
+  const killsText = document.getElementById('killsText');
+  const comboText = document.getElementById('comboText');
+  const menuOverlay = document.getElementById('menuOverlay');
+  const perkOverlay = document.getElementById('perkOverlay');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const perkGrid = document.getElementById('perkGrid');
+  const finalScoreText = document.getElementById('finalScoreText');
+  const finalBestText = document.getElementById('finalBestText');
   const startBtn = document.getElementById('startBtn');
   const restartBtn = document.getElementById('restartBtn');
-  const perkOverlay = document.getElementById('perkOverlay');
-  const perkGrid = document.getElementById('perkGrid');
-  const banner = document.getElementById('banner');
 
-  let W = 0, H = 0, dpr = 1;
-  function resize() {
-    dpr = Math.max(1, Math.min(2, devicePixelRatio || 1));
+  let W=0,H=0,DPR=1;
+  const keys = {};
+  const mouse = {x:0,y:0, down:false, active:false};
+  let state = 'menu';
+  let last = 0;
+  let shake = 0;
+  let score = 0, best = +localStorage.getItem('zombie_best') || 0;
+  let wave = 1, kills = 0, combo = 1, comboTimer = 0, perkCount = 0;
+  let spawnTimer = 0, waveTime = 0, waveDone = false, autoRestartFlash=0;
+  const player = {
+    x: 0, y: 0, r: 16,
+    hp: 100, hpMax: 100,
+    speed: 220,
+    inv: 0,
+    fireRate: 0.16,
+    fireCd: 0,
+    bulletDamage: 18,
+    bulletSpeed: 620,
+    bulletPierce: 0,
+    magnet: 0,
+    crit: 0,
+    regen: 0,
+    spread: 0,
+    ammo: 0,
+  };
+  let bullets = [], zombies = [], particles = [], floats = [], perks = [];
+  function resize(){
+    DPR = Math.min(devicePixelRatio || 1, 2);
     W = innerWidth; H = innerHeight;
-    canvas.width = Math.floor(W * dpr);
-    canvas.height = Math.floor(H * dpr);
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = Math.floor(W*DPR);
+    canvas.height = Math.floor(H*DPR);
+    canvas.style.width = W+'px';
+    canvas.style.height = H+'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
   }
   addEventListener('resize', resize);
-  resize();
 
-  const keys = Object.create(null);
-  const mouse = { x: W/2, y: H/2, down: false };
-  let pointerReady = false;
-  addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-    if (e.key.toLowerCase() === 'r') resetGame(false);
-    if (e.key === ' ') { if (state === 'menu') startGame(); }
-  });
-  addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-  canvas.addEventListener('pointermove', e => {
-    const r = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - r.left;
-    mouse.y = e.clientY - r.top;
-    pointerReady = true;
-  });
-  canvas.addEventListener('pointerdown', e => {
-    const r = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - r.left;
-    mouse.y = e.clientY - r.top;
-    mouse.down = true;
-    pointerReady = true;
-    if (state === 'menu') startGame();
-  });
-  addEventListener('pointerup', () => mouse.down = false);
-
-  const bestKey = 'deadlight_outbreak_best';
-  let bestScore = +(localStorage.getItem(bestKey) || 0);
-  bestText.textContent = bestScore;
-
-  let state = 'menu'; // menu, play, perk, dead
-  let player, bullets, zombies, particles, pickups, flashes;
-  let score = 0, kills = 0, wave = 1, waveKills = 0, nextWaveKills = 14, spawnTimer = 0, waveBannerT = 1.1;
-  let combo = 0, comboTimer = 0, waveClearHold = 0;
-  let autoFire = true;
-  let fadeMenuOut = false;
-  let bannerTimer = 0;
-
-  function makePlayer() {
-    return {
-      x: W * 0.5, y: H * 0.55, r: 14,
-      hp: 100, maxHp: 100,
-      speed: 230,
-      fireCd: 0, fireRate: 0.15,
-      bulletSpeed: 680, dmg: 24,
-      multishot: 0, pierce: 0, crit: 0.12,
-      lifesteal: 0, magnet: 0,
-      spread: 0.0, speedBoost: 0,
-      inv: 0, regen: 0
-    };
+  function resetGame(){
+    score = 0; wave = 1; kills = 0; combo = 1; comboTimer = 0; perkCount = 0;
+    spawnTimer = 0; waveTime = 0; waveDone = false; shake = 0;
+    bullets = []; zombies = []; particles = []; floats = [];
+    player.x = W/2; player.y = H/2;
+    player.r = 16; player.hpMax = 100; player.hp = 100; player.speed = 220;
+    player.inv = 0; player.fireRate = 0.16; player.fireCd = 0;
+    player.bulletDamage = 18; player.bulletSpeed = 620; player.bulletPierce = 0;
+    player.magnet = 0; player.crit = 0; player.regen = 0; player.spread = 0; player.ammo = 0;
+    state = 'playing';
+    menuOverlay.classList.add('hidden');
+    perkOverlay.classList.add('hidden');
+    gameOverOverlay.classList.add('hidden');
   }
 
-  function resetGame(keepMenu = false) {
-    player = makePlayer();
-    bullets = [];
-    zombies = [];
-    particles = [];
-    pickups = [];
-    flashes = [];
-    score = 0;
-    kills = 0;
-    wave = 1;
-    waveKills = 0;
-    nextWaveKills = 14;
-    spawnTimer = 0;
-    combo = 0;
-    comboTimer = 0;
-    waveClearHold = 0;
-    autoFire = true;
-    hidePerks();
-    bannerTimer = 0;
-    updateHUD(true);
-    if (keepMenu) {
-      state = 'menu';
-      startOverlay.classList.remove('hide');
-      startOverlay.style.display = 'block';
-      startOverlay.style.opacity = '1';
-      startOverlay.style.transform = 'translate(-50%, -50%) scale(1)';
-    } else {
-      state = 'play';
-      startOverlay.classList.add('hide');
-      fadeMenuOut = true;
-      setTimeout(() => {
-        if (state === 'play') startOverlay.style.display = 'none';
-      }, 360);
-      showBanner('생존 시작!');
-    }
+  function spawnZombie(strength=1){
+    const side = Math.floor(Math.random()*4);
+    let x,y;
+    if(side===0){ x=-30; y=Math.random()*H; }
+    if(side===1){ x=W+30; y=Math.random()*H; }
+    if(side===2){ x=Math.random()*W; y=-30; }
+    if(side===3){ x=Math.random()*W; y=H+30; }
+    const s = 44 + Math.random()*10 + wave*0.9;
+    zombies.push({
+      x,y,r:s*0.32,
+      hp: 24 + wave*8*strength,
+      spd: 42 + wave*4.5 + Math.random()*18,
+      dmg: 18 + wave*1.2,
+      wig: Math.random()*Math.PI*2,
+      hurt:0
+    });
   }
 
-  function startGame() {
-    if (state === 'menu' || state === 'dead') {
-      resetGame(false);
-    }
+  function addFloat(x,y,text,color){
+    floats.push({x,y,text,color,life:1.1});
   }
 
-  function gameOver() {
-    state = 'dead';
-    hidePerks();
-    startOverlay.style.display = 'block';
-    startOverlay.classList.remove('hide');
-    startOverlay.innerHTML = `
-      <div class="title">사망</div>
-      <p class="sub">좀비 무리에 쓰러졌습니다.<br/>점수 <b>${Math.floor(score)}</b> · 처치 <b>${kills}</b> · 최고 <b>${bestScore}</b></p>
-      <div class="hint">R 키 또는 재시작 버튼으로 다시 도전하세요.</div>
-      <div class="btnRow">
-        <button id="reStartBtn">다시 시작</button>
-        <button id="backMenuBtn" class="secondary">설명 보기</button>
-      </div>
-    `;
-    setTimeout(() => {
-      const reStartBtn = document.getElementById('reStartBtn');
-      const backMenuBtn = document.getElementById('backMenuBtn');
-      if (reStartBtn) reStartBtn.onclick = () => resetGame(false);
-      if (backMenuBtn) backMenuBtn.onclick = () => resetGame(true);
-    }, 0);
-  }
-
-  function hidePerks() { perkOverlay.style.display = 'none'; }
-
-  function showBanner(text) {
-    banner.textContent = text;
-    banner.classList.add('show');
-    bannerTimer = 1.0;
-  }
-
-  function shuffle(arr) {
-    return arr.map(v => [Math.random(), v]).sort((a, b) => a[0] - b[0]).map(v => v[1]);
-  }
-
-  function showPerks() {
-    state = 'perk';
-    perkOverlay.style.display = 'block';
-    const options = [
-      { name:'연사 개선', tag:'공격', desc:'발사 속도 18% 증가.', apply(){ player.fireRate = Math.max(0.06, player.fireRate * 0.82); } },
-      { name:'탄속 증폭', tag:'공격', desc:'탄환 속도 20% 증가.', apply(){ player.bulletSpeed *= 1.2; } },
-      { name:'대미지 강화', tag:'공격', desc:'탄환 피해 30% 증가.', apply(){ player.dmg = Math.round(player.dmg * 1.3); } },
-      { name:'기동성', tag:'생존', desc:'이동 속도 15% 증가.', apply(){ player.speed *= 1.15; } },
-      { name:'관통 탄', tag:'공격', desc:'탄환이 1회 더 관통합니다.', apply(){ player.pierce += 1; } },
-      { name:'추가 탄환', tag:'공격', desc:'가끔 2발을 동시 발사합니다.', apply(){ player.multishot += 1; } },
-      { name:'생명력', tag:'생존', desc:'최대 체력 20 증가 및 즉시 회복.', apply(){ player.maxHp += 20; player.hp += 20; } },
-      { name:'흡혈', tag:'회복', desc:'처치할 때마다 체력을 4 회복합니다.', apply(){ player.lifesteal += 4; } },
-      { name:'자기장', tag:'유틸', desc:'픽업 흡인 범위가 크게 늘어납니다.', apply(){ player.magnet += 80; } },
-      { name:'치명타', tag:'공격', desc:'치명타 확률 10% 증가.', apply(){ player.crit = Math.min(0.5, player.crit + 0.10); } },
-      { name:'재생', tag:'생존', desc:'아주 느리게 체력이 자동 회복됩니다.', apply(){ player.regen += 0.6; } },
-      { name:'탄막 안정화', tag:'유틸', desc:'사격 퍼짐 감소 및 명중 보정 향상.', apply(){ player.spread = Math.max(0, player.spread - 0.02); player.bulletSpeed += 40; } },
+  function perkList(){
+    return [
+      {name:'탄환 강화', desc:'+25% 탄환 피해. 좀비를 더 빨리 녹입니다.', apply(){ player.bulletDamage *= 1.25; }},
+      {name:'연사 개조', desc:'+18% 발사 속도. 탄막이 더 촘촘해집니다.', apply(){ player.fireRate *= 0.82; }},
+      {name:'체력 증강', desc:'+30 최대 체력 및 즉시 30 회복.', apply(){ player.hpMax += 30; player.hp = Math.min(player.hpMax, player.hp + 30); }},
+      {name:'기동력', desc:'+12% 이동 속도. 포위에서 빠져나오기 쉬워집니다.', apply(){ player.speed *= 1.12; }},
+      {name:'관통 탄환', desc:'탄환이 1회 관통합니다.', apply(){ player.bulletPierce += 1; }},
+      {name:'광역 분산', desc:'3발 산탄이 됩니다. 각 탄환 피해는 80%.', apply(){ player.spread += 1; }},
+      {name:'치명 개조', desc:'+10% 치명타 확률, 치명타 시 2.5배 피해.', apply(){ player.crit += 0.10; }},
+      {name:'재생 회복', desc:'초당 1.5 체력 회복.', apply(){ player.regen += 1.5; }},
     ];
-    const picks = shuffle(options).slice(0, 3);
+  }
+
+  function showPerkChoice(){
+    state='perk';
+    perkOverlay.classList.remove('hidden');
+    const pool = perkList().sort(()=>Math.random()-0.5).slice(0,3);
+    perks = pool;
     perkGrid.innerHTML = '';
-    picks.forEach(p => {
+    pool.forEach((p, i) => {
       const el = document.createElement('div');
       el.className = 'perk';
-      el.innerHTML = `<div class="perkTag">${p.tag}</div><h3>${p.name}</h3><p>${p.desc}</p>`;
-      el.onclick = () => {
-        p.apply();
-        hidePerks();
-        state = 'play';
-        showBanner(`업그레이드: ${p.name}`);
-        wave += 0;
-      };
+      el.innerHTML = `<h3>${i+1}. ${p.name}</h3><p>${p.desc}</p>`;
+      el.onclick = () => choosePerk(i);
       perkGrid.appendChild(el);
     });
   }
 
-  function spawnZombie() {
-    const edge = (Math.random() * 4) | 0;
-    let x, y;
-    if (edge === 0) { x = -30; y = Math.random() * H; }
-    else if (edge === 1) { x = W + 30; y = Math.random() * H; }
-    else if (edge === 2) { x = Math.random() * W; y = -30; }
-    else { x = Math.random() * W; y = H + 30; }
-
-    const tough = 1 + wave * 0.11;
-    const hp = 18 + wave * 7 + Math.random() * wave * 1.8;
-    zombies.push({
-      x, y,
-      r: 12 + Math.min(11, wave * 0.25),
-      hp, maxHp: hp,
-      spd: (44 + wave * 5) * tough * (0.95 + Math.random() * 0.28),
-      atk: 12 + wave * 1.7,
-      biteCd: 0,
-      wob: Math.random() * Math.PI * 2
-    });
+  function choosePerk(i){
+    if(state!=='perk') return;
+    const p = perks[i];
+    if(p){ p.apply(); perkCount++; addFloat(player.x, player.y-24, p.name, '#7fe0ff'); }
+    perkOverlay.classList.add('hidden');
+    state='playing';
   }
 
-  function burst(x, y, n, color, power = 1) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = (30 + Math.random() * 110) * power;
-      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35 + Math.random() * 0.45, c: color, size: 1.6 + Math.random() * 2.2 });
-    }
+  function gameOver(){
+    state='over';
+    best = Math.max(best, Math.floor(score));
+    localStorage.setItem('zombie_best', best);
+    finalScoreText.textContent = Math.floor(score);
+    finalBestText.textContent = best;
+    gameOverOverlay.classList.remove('hidden');
   }
 
-  function shoot() {
-    if (player.fireCd > 0) return;
+  function shoot(){
+    if(player.fireCd > 0 || state!=='playing') return;
     player.fireCd = player.fireRate;
-    const ang = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-    const spreadBase = player.spread;
-    const shots = [{ offset: 0, power: 1 }];
-    for (let i = 0; i < player.multishot; i++) {
-      const s = (i % 2 ? 1 : -1) * (0.08 + 0.03 * i);
-      shots.push({ offset: s, power: 0.92 });
-    }
-    shots.forEach(s => {
-      const a = ang + s.offset + (Math.random() - 0.5) * spreadBase;
+    const dx = mouse.x - player.x, dy = mouse.y - player.y;
+    const ang = Math.atan2(dy, dx);
+    const shots = player.spread ? 3 : 1;
+    const spreadAng = 0.14;
+    for(let i=0;i<shots;i++){
+      const a = ang + (shots===1?0:(i-1)*spreadAng);
       bullets.push({
-        x: player.x + Math.cos(a) * 18,
-        y: player.y + Math.sin(a) * 18,
-        vx: Math.cos(a) * player.bulletSpeed,
-        vy: Math.sin(a) * player.bulletSpeed,
+        x: player.x + Math.cos(a)*20,
+        y: player.y + Math.sin(a)*20,
+        vx: Math.cos(a)*player.bulletSpeed,
+        vy: Math.sin(a)*player.bulletSpeed,
         r: 4,
-        dmg: player.dmg * s.power,
-        pierce: player.pierce,
-        life: 1.5,
-        c: s.power > 0.95 ? '#effcff' : '#b7f1ff'
+        dmg: player.bulletDamage * (shots===1?1:0.8),
+        pierce: player.bulletPierce,
+        life: 1.6
       });
-    });
-    burst(player.x, player.y, 2, '#b7f1ff', 0.5);
-  }
-
-  function updateHUD(force = false) {
-    hpText.textContent = Math.max(0, Math.ceil(player.hp));
-    hpBar.style.width = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100)) + '%';
-    scoreText.textContent = Math.floor(score);
-    waveText.textContent = wave;
-    killText.textContent = kills;
-    comboText.textContent = combo;
-    if (score > bestScore) {
-      bestScore = Math.floor(score);
-      localStorage.setItem(bestKey, bestScore);
-      bestText.textContent = bestScore;
     }
-    if (force) bestText.textContent = bestScore;
   }
 
-  function step(dt) {
-    if (state !== 'play') return;
+  function update(dt){
+    if(state!=='playing') return;
 
-    const mvx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
-    const mvy = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0);
-    const len = Math.hypot(mvx, mvy) || 1;
-    player.x += (mvx / len) * player.speed * dt;
-    player.y += (mvy / len) * player.speed * dt;
-    player.x = Math.max(player.r, Math.min(W - player.r, player.x));
-    player.y = Math.max(player.r, Math.min(H - player.r, player.y));
-
-    player.fireCd = Math.max(0, player.fireCd - dt);
-    player.inv = Math.max(0, player.inv - dt);
+    waveTime += dt;
     comboTimer = Math.max(0, comboTimer - dt);
-    if (comboTimer <= 0) combo = 0;
-    if (player.regen > 0 && player.hp > 0) player.hp = Math.min(player.maxHp, player.hp + player.regen * dt);
+    if(comboTimer===0) combo = Math.max(1, combo - dt*0.7);
+    if(player.regen > 0) player.hp = Math.min(player.hpMax, player.hp + player.regen*dt);
+    player.inv = Math.max(0, player.inv - dt);
+    player.fireCd = Math.max(0, player.fireCd - dt);
 
-    if (autoFire || mouse.down) shoot();
+    const mvx = (keys['d']||keys['arrowright']?1:0) - (keys['a']||keys['arrowleft']?1:0);
+    const mvy = (keys['s']||keys['arrowdown']?1:0) - (keys['w']||keys['arrowup']?1:0);
+    let len = Math.hypot(mvx,mvy) || 1;
+    player.x += mvx/len * player.speed * dt;
+    player.y += mvy/len * player.speed * dt;
+    player.x = Math.max(18, Math.min(W-18, player.x));
+    player.y = Math.max(18, Math.min(H-18, player.y));
 
+    if(mouse.active || mouse.down) shoot();
+
+    const difficulty = 1 + wave*0.12 + waveTime*0.02;
     spawnTimer -= dt;
-    const spawnDelay = Math.max(0.14, 0.9 - wave * 0.05);
-    if (spawnTimer <= 0) {
-      spawnTimer = spawnDelay;
-      spawnZombie();
-      if (Math.random() < Math.min(0.3, 0.05 + wave * 0.02)) spawnZombie();
-      if (wave >= 4 && Math.random() < 0.15) spawnZombie();
+    const spawnGap = Math.max(0.18, 0.9 - wave*0.05);
+    if(spawnTimer <= 0){
+      const count = wave < 3 ? 1 : (Math.random() < 0.25 ? 2 : 1);
+      for(let i=0;i<count;i++) spawnZombie(difficulty > 2.5 && Math.random()<0.15 ? 2 : 1);
+      spawnTimer = spawnGap * (0.85 + Math.random()*0.6);
     }
 
-    for (const z of zombies) {
+    if(!waveDone && kills >= wave*10){
+      waveDone = true;
+      setTimeout(() => {
+        if(state==='playing'){
+          wave++;
+          waveDone = false;
+          showPerkChoice();
+        }
+      }, 250);
+    }
+
+    bullets.forEach(b => {
+      b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    });
+    bullets = bullets.filter(b => b.life > 0 && b.x>-50 && b.x<W+50 && b.y>-50 && b.y<H+50);
+
+    zombies.forEach(z => {
+      z.wig += dt * 3;
       const dx = player.x - z.x, dy = player.y - z.y;
-      const ang = Math.atan2(dy, dx);
-      const dist = Math.hypot(dx, dy) || 1;
-      const chase = 1 + Math.min(0.55, wave * 0.02);
-      z.x += Math.cos(ang + Math.sin((performance.now() * 0.002 + z.wob) * 2) * 0.08) * z.spd * dt * chase;
-      z.y += Math.sin(ang + Math.cos((performance.now() * 0.002 + z.wob) * 2) * 0.08) * z.spd * dt * chase;
-      z.biteCd = Math.max(0, z.biteCd - dt);
-
-      if (dist < player.r + z.r) {
-        if (player.inv <= 0 && z.biteCd <= 0) {
-          const damage = z.atk * (0.78 + wave * 0.02);
-          player.hp -= damage;
-          player.inv = 0.14;
-          z.biteCd = 0.45;
-          combo = 0;
-          comboTimer = 0;
-          burst(player.x, player.y, 8, '#ff6161', 1);
+      const dist = Math.hypot(dx,dy) || 1;
+      const nx = dx / dist, ny = dy / dist;
+      z.x += nx * z.spd * dt;
+      z.y += ny * z.spd * dt;
+      z.hurt = Math.max(0, z.hurt - dt);
+      if(dist < z.r + player.r){
+        if(player.inv<=0){
+          player.hp -= z.dmg;
+          player.inv = 0.45;
+          shake = 8;
+          addFloat(player.x, player.y-30, '-'+Math.round(z.dmg), '#ff8b8b');
+          if(player.hp <= 0){ player.hp = 0; gameOver(); }
         }
       }
-    }
+    });
 
-    for (let i = bullets.length - 1; i >= 0; i--) {
+    for(let i=bullets.length-1;i>=0;i--){
       const b = bullets[i];
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      b.life -= dt;
-      if (b.life <= 0 || b.x < -50 || b.y < -50 || b.x > W + 50 || b.y > H + 50) {
-        bullets.splice(i, 1);
-        continue;
-      }
-
-      let hit = false;
-      for (let j = zombies.length - 1; j >= 0; j--) {
+      for(let j=zombies.length-1;j>=0;j--){
         const z = zombies[j];
-        if (Math.hypot(b.x - z.x, b.y - z.y) < b.r + z.r) {
-          const crit = Math.random() < player.crit ? 2 : 1;
-          z.hp -= b.dmg * crit;
-          burst(b.x, b.y, 5, crit > 1 ? '#ffe56d' : '#78e4ff', 0.8);
-          score += 1 + Math.floor(wave * 0.35);
-          combo++;
+        const dx = z.x - b.x, dy = z.y - b.y;
+        if(dx*dx + dy*dy < (z.r+b.r)*(z.r+b.r)){
+          z.hp -= b.dmg * (Math.random() < player.crit ? 2.5 : 1);
+          z.hurt = 0.15;
+          b.pierce--;
+          b.life = 0.01;
+          score += 10;
           comboTimer = 1.6;
-          if (z.hp <= 0) {
-            zombies.splice(j, 1);
+          combo = Math.min(8, combo + 0.08);
+          if(z.hp <= 0){
+            zombies.splice(j,1);
             kills++;
-            const bonus = 10 + wave * 2 + combo * 0.6;
-            score += bonus;
-            player.hp = Math.min(player.maxHp, player.hp + player.lifesteal);
-            burst(z.x, z.y, 14, '#5bff8f', 1.1);
-            if (Math.random() < Math.min(0.24, 0.08 + wave * 0.006)) {
-              pickups.push({ x: z.x, y: z.y, r: 8.5, t: Math.random() < 0.65 ? 'heal' : 'score', vy: -20, wob: Math.random() * 6.2 });
-            }
-            waveKills++;
-            if (waveKills >= nextWaveKills) {
-              wave++;
-              waveKills = 0;
-              nextWaveKills = Math.floor(14 + wave * 2.6);
-              waveClearHold = 0.55;
-              bannerTimer = 0;
-              showPerks();
-              showBanner(`웨이브 ${wave} 돌입`);
-            }
+            const bonus = 20 + Math.floor(wave*2*combo);
+            score += bonus * combo;
+            addFloat(z.x, z.y, '+' + Math.floor(bonus*combo), '#9dff86');
+            for(let k=0;k<8;k++) particles.push({x:z.x,y:z.y,vx:(Math.random()-0.5)*180,vy:(Math.random()-0.5)*180,life:0.5+Math.random()*0.4,c:'#9dff86'});
+          } else {
+            addFloat(z.x, z.y-10, Math.round(b.dmg), '#ffd98a');
           }
-          if (b.pierce > 0) b.pierce--;
-          else { bullets.splice(i, 1); hit = true; }
-          break;
+          if(b.pierce < 0) break;
         }
       }
-      if (hit) continue;
     }
 
-    for (let i = pickups.length - 1; i >= 0; i--) {
-      const p = pickups[i];
-      const dx = player.x - p.x, dy = player.y - p.y;
-      const dist = Math.hypot(dx, dy);
-      const magnet = 70 + player.magnet;
-      p.x += dx * dt * 0.18;
-      p.y += dy * dt * 0.18;
-      p.vy = (p.vy || -10) * 0.98;
-      if (dist < player.r + p.r + magnet * 0.1) {
-        if (p.t === 'heal') {
-          player.hp = Math.min(player.maxHp, player.hp + 18);
-          score += 6;
-        } else {
-          score += 22 + wave * 2;
-        }
-        burst(p.x, p.y, 10, p.t === 'heal' ? '#daff74' : '#7ec8ff', 0.9);
-        pickups.splice(i, 1);
-      }
-    }
+    zombies = zombies.filter(z => z.hp > 0 && z.x>-80 && z.x<W+80 && z.y>-80 && z.y<H+80);
+    particles.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= 0.98; p.vy *= 0.98; p.life -= dt; });
+    particles = particles.filter(p => p.life > 0);
+    floats.forEach(f => { f.y -= 24*dt; f.life -= dt; });
+    floats = floats.filter(f => f.life > 0);
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vx *= 0.985;
-      p.vy *= 0.985;
-      p.life -= dt;
-      if (p.life <= 0) particles.splice(i, 1);
-    }
-
-    if (player.hp <= 0) {
-      player.hp = 0;
-      updateHUD(true);
-      gameOver();
-      return;
-    }
-
-    if (waveClearHold > 0) waveClearHold -= dt;
-    if (bannerTimer > 0) {
-      bannerTimer -= dt;
-      if (bannerTimer <= 0) banner.classList.remove('show');
-    }
-
-    updateHUD();
+    score += dt * (1 + wave*0.2 + combo*0.05);
+    if(score > best) best = Math.floor(score);
   }
 
-  function drawGrid() {
-    const grid = 52;
-    const t = performance.now() * 0.02;
-    const ox = -(t % grid);
-    const oy = -((performance.now() * 0.014) % grid);
-
+  function drawGrid(){
     ctx.save();
-    ctx.globalAlpha = 0.12;
-    ctx.strokeStyle = '#88dfff';
+    ctx.strokeStyle = 'rgba(120,180,200,0.06)';
     ctx.lineWidth = 1;
-    for (let x = ox; x < W; x += grid) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    const step = 42;
+    for(let x=(shake?Math.random()*shake:0); x<W; x+=step){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
     }
-    for (let y = oy; y < H; y += grid) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    for(let y=(shake?Math.random()*shake:0); y<H; y+=step){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
     }
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    const cx = W * 0.5, cy = H * 0.5;
-    const g = ctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.6);
-    g.addColorStop(0, '#66e5ff');
-    g.addColorStop(1, 'transparent');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }
 
-  function drawPlayer() {
-    if (!player) return;
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    if(shake>0){ ctx.save(); ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake); shake *= 0.88; }
+    drawGrid();
+
+    ctx.fillStyle = 'rgba(18,30,36,0.9)';
+    ctx.fillRect(0,0,W,H);
+
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    const g = ctx.createRadialGradient(player.x, player.y, 40, player.x, player.y, 300);
+    g.addColorStop(0, 'rgba(90,170,200,0.24)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+
+    bullets.forEach(b => {
+      ctx.beginPath();
+      ctx.fillStyle = '#baf2ff';
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    zombies.forEach(z => {
+      const wob = Math.sin(z.wig)*2;
+      ctx.save();
+      ctx.translate(z.x, z.y + wob);
+      ctx.fillStyle = z.hurt ? '#ff7b7b' : '#7e8f78';
+      ctx.beginPath();
+      ctx.arc(0,0,z.r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#31413a';
+      ctx.beginPath(); ctx.arc(-z.r*0.28,-z.r*0.15, z.r*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(z.r*0.24,-z.r*0.15, z.r*0.12, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#d7f1ff';
+      ctx.fillRect(-z.r*0.22, z.r*0.2, z.r*0.44, z.r*0.10);
+      ctx.restore();
+    });
+
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(0,p.life);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(p.x, p.y, 3, 3);
+      ctx.globalAlpha = 1;
+    });
+
     ctx.save();
     ctx.translate(player.x, player.y);
-    const aim = Math.atan2(mouse.y - player.y, mouse.x - player.x);
-
-    ctx.fillStyle = player.inv > 0 ? '#fff08a' : '#6fe9ff';
-    ctx.beginPath(); ctx.arc(0, 0, player.r, 0, Math.PI * 2); ctx.fill();
-
-    ctx.rotate(aim);
-    ctx.fillStyle = '#f4fbff';
-    ctx.fillRect(5, -3.5, 21, 7);
-    ctx.fillStyle = '#15313d';
-    ctx.fillRect(17, -2.3, 10, 4.6);
-
-    ctx.fillStyle = 'rgba(255,255,255,.08)';
-    ctx.beginPath(); ctx.arc(0, 0, player.r + 6, 0, Math.PI * 2); ctx.stroke();
-
+    const ang = Math.atan2(mouse.y-player.y, mouse.x-player.x);
+    ctx.rotate(ang);
+    ctx.fillStyle = player.inv>0 ? '#ffd96a' : '#57d2ff';
+    ctx.beginPath(); ctx.arc(0,0,player.r,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#031017';
+    ctx.fillRect(-2,-4,18,8);
+    ctx.fillStyle = '#def8ff';
+    ctx.beginPath(); ctx.arc(5,-5,3,0,Math.PI*2); ctx.fill();
     ctx.restore();
+
+    floats.forEach(f => {
+      ctx.globalAlpha = Math.max(0, f.life);
+      ctx.fillStyle = f.color;
+      ctx.font = 'bold 14px system-ui';
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.globalAlpha = 1;
+    });
+
+    if(shake>0.5) ctx.restore();
+
+    hpText.textContent = Math.ceil(player.hp);
+    hpMaxText.textContent = player.hpMax;
+    scoreText.textContent = Math.floor(score);
+    bestText.textContent = best;
+    waveText.textContent = wave;
+    killsText.textContent = kills;
+    comboText.textContent = 'x' + combo.toFixed(1);
   }
 
-  function drawZombies() {
-    for (const z of zombies) {
-      ctx.save();
-      ctx.translate(z.x, z.y);
-
-      ctx.fillStyle = '#d84a4a';
-      ctx.beginPath(); ctx.arc(0, 0, z.r, 0, Math.PI * 2); ctx.fill();
-
-      ctx.fillStyle = '#4aff67';
-      ctx.beginPath(); ctx.arc(0, 0, Math.max(3, z.r * 0.62), 0, Math.PI * 2); ctx.fill();
-
-      ctx.fillStyle = '#111';
-      ctx.fillRect(-6, -3, 4, 4);
-      ctx.fillRect(2, -3, 4, 4);
-      ctx.fillStyle = '#f7f1cf';
-      ctx.fillRect(-5, 5, 10, 2);
-
-      const w = 30;
-      ctx.fillStyle = 'rgba(0,0,0,.45)';
-      ctx.fillRect(-w/2, -z.r - 15, w, 5);
-      ctx.fillStyle = '#ff5353';
-      ctx.fillRect(-w/2, -z.r - 15, Math.max(0, w * z.hp / z.maxHp), 5);
-
-      ctx.restore();
-    }
-  }
-
-  function drawBullets() {
-    for (const b of bullets) {
-      ctx.save();
-      ctx.fillStyle = b.c;
-      ctx.shadowColor = b.c;
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  function drawPickups() {
-    for (const p of pickups) {
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      const pulse = 1 + Math.sin(performance.now() * 0.006 + p.wob) * 0.08;
-      ctx.scale(pulse, pulse);
-      ctx.fillStyle = p.t === 'heal' ? '#d9ff6b' : '#7fd1ff';
-      ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#21310f';
-      ctx.fillRect(-4, -1, 8, 2);
-      ctx.fillRect(-1, -4, 2, 8);
-      ctx.restore();
-    }
-  }
-
-  function drawParticles() {
-    ctx.save();
-    for (const p of particles) {
-      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
-      ctx.fillStyle = p.c;
-      ctx.fillRect(p.x, p.y, p.size, p.size);
-    }
-    ctx.restore();
-  }
-
-  function drawFlashes() {
-    for (const f of flashes) {
-      ctx.save();
-      ctx.globalAlpha = f.a;
-      ctx.fillStyle = f.c;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  function drawAimRing() {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,.15)';
-    ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, 14, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    drawGrid();
-    drawPickups();
-    drawBullets();
-    drawZombies();
-    drawPlayer();
-    drawParticles();
-    drawFlashes();
-    if (state === 'menu' && startOverlay.style.display !== 'none') drawAimRing();
-  }
-
-  let last = performance.now();
-  function loop(t) {
-    const dt = Math.min(0.033, (t - last) / 1000);
-    last = t;
-    if (state === 'play') step(dt);
-    else if (state === 'perk') updateHUD();
-    else updateHUD();
-    draw();
+  function loop(ts){
+    if(!last) last = ts;
+    const dt = Math.min(0.033, (ts-last)/1000);
+    last = ts;
+    update(dt);
+    render();
     requestAnimationFrame(loop);
   }
+
+  addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+    if(e.key.toLowerCase() === 'r'){
+      resetGame();
+    }
+    if(state==='menu' && e.key === 'Enter') resetGame();
+    if(state==='perk' && ['1','2','3'].includes(e.key)) choosePerk(+e.key-1);
+  });
+  addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
+  addEventListener('mousedown', e => { mouse.down = true; mouse.active = true; if(state==='menu') resetGame(); });
+  addEventListener('mouseup', () => mouse.down = false);
+  addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    mouse.x = t.clientX; mouse.y = t.clientY; mouse.down = true; mouse.active = true;
+    if(state==='menu') resetGame();
+  }, {passive:false});
+  addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    mouse.x = t.clientX; mouse.y = t.clientY;
+  }, {passive:false});
+  addEventListener('touchend', e => { e.preventDefault(); mouse.down = false; }, {passive:false});
+
+  startBtn.onclick = () => resetGame();
+  restartBtn.onclick = () => resetGame();
+
+  resize();
+  player.x = W/2; player.y = H/2;
+  bestText.textContent = best;
   requestAnimationFrame(loop);
-
-  startBtn.onclick = startGame;
-  restartBtn.onclick = () => resetGame(false);
-  addEventListener('visibilitychange', () => { if (document.hidden) mouse.down = false; });
-
-  resetGame(true);
 })();
 </script>
 </body>
