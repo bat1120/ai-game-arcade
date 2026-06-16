@@ -1,5 +1,11 @@
 [
   {
+    "slug": "daily-lantern-grid",
+    "title": "LANTERN GRID",
+    "score": 86,
+    "fun": 63
+  },
+  {
     "slug": "daily-word",
     "title": "WORD RUSH",
     "score": 84,
@@ -30,6 +36,12 @@
     "fun": 54
   },
   {
+    "slug": "moss-clock",
+    "title": "MOSS CLOCK",
+    "score": 86,
+    "fun": 62
+  },
+  {
     "slug": "neon-dash",
     "title": "NEON DASH",
     "score": 84,
@@ -46,6 +58,12 @@
     "title": "PULSE JUMP",
     "score": 85,
     "fun": 72
+  },
+  {
+    "slug": "tide-tactician",
+    "title": "TIDE TACTICIAN",
+    "score": 84,
+    "fun": 68
   },
   {
     "slug": "tower-defense",

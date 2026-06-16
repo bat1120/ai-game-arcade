@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>오늘의 등불 수수께끼</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#101933cc;
+      --panel2:#0f1730ee;
+      --text:#ecf3ff;
+      --muted:#9fb0d0;
+      --accent:#7ee7ff;
+      --good:#69f0ae;
+      --warn:#ffd166;
+      --bad:#ff6b8b;
+      --grid:#243455;
+      --cellOff:#141c2f;
+      --cellOn:#ffe08a;
+      --cellOn2:#ffb84d;
+      --hint:#c7d4ff;
+      --shadow:rgba(0,0,0,.35);
+    }
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background: radial-gradient(1200px 900px at 50% 20%, #17234b 0%, #0b1020 55%, #060911 100%);
+      color:var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      user-select:none;
+      touch-action:none;
+    }
+    canvas{display:block;width:100vw;height:100vh;cursor:crosshair;}
+    .ui{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+    }
+    .topbar{
+      position:absolute;
+      left:50%;
+      top:10px;
+      transform:translateX(-50%);
+      width:min(1120px, calc(100vw - 18px));
+      display:flex;
+      gap:10px;
+      justify-content:space-between;
+      align-items:stretch;
+      flex-wrap:wrap;
+    }
+    .panel{
+      background:linear-gradient(180deg, rgba(16,25,51,.88), rgba(10,15,31,.82));
+      border:1px solid rgba(154,190,255,.16);
+      box-shadow:0 12px 30px var(--shadow);
+      border-radius:16px;
+      padding:10px 12px;
+      backdrop-filter: blur(8px);
+    }
+    .stats{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .stat b{display:block;font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.02em}
+    .stat span{font-size:18px;font-weight:800}
+    .stat .small{font-size:12px;color:var(--muted);font-weight:600}
+    .right{
+      display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end;
+    }
+    .btn{
+      pointer-events:auto;
+      border:none;
+      color:var(--text);
+      background:linear-gradient(180deg, rgba(126,231,255,.22), rgba(126,231,255,.12));
+      border:1px solid rgba(126,231,255,.28);
+      padding:10px 12px;
+      border-radius:14px;
+      font-weight:800;
+      letter-spacing:.02em;
+      box-shadow:0 10px 20px rgba(0,0,0,.22);
+      cursor:pointer;
+    }
+    .btn:hover{filter:brightness(1.08)}
+    .btn:active{transform:translateY(1px)}
+    .mini{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+    }
+    .centerMsg{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%,-50%);
+      width:min(720px, calc(100vw - 24px));
+      text-align:center;
+      pointer-events:none;
+    }
+    .title{
+      font-size:clamp(28px,4vw,54px);
+      font-weight:900;
+      letter-spacing:.02em;
+      margin:0 0 8px;
+      text-shadow:0 8px 22px rgba(0,0,0,.35);
+    }
+    .subtitle{
+      margin:0 auto;
+      width:min(620px,100%);
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.6;
+    }
+    .card{
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      width:min(1120px, calc(100vw - 18px));
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+    .legend{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.08);
+      color:var(--text);
+      font-size:12px;
+      font-weight:700;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      display:inline-block;
+      box-shadow:0 0 18px currentColor;
+    }
+    .overlay{
+      position:absolute;
+      inset:0;
+      background:radial-gradient(800px 500px at 50% 42%, rgba(9,13,28,.12), rgba(9,13,28,.54));
+      opacity:0;
+      transition:opacity .2s;
+      pointer-events:none;
+    }
+    .overlay.show{opacity:1}
+    .toast{
+      position:absolute;
+      left:50%;
+      top:96px;
+      transform:translateX(-50%);
+      background:rgba(10,16,34,.92);
+      border:1px solid rgba(255,255,255,.12);
+      padding:10px 14px;
+      border-radius:999px;
+      box-shadow:0 12px 24px rgba(0,0,0,.28);
+      font-weight:800;
+      opacity:0;
+      transition:opacity .2s, transform .2s;
+      pointer-events:none;
+    }
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .kbd{
+      display:inline-block;
+      padding:.1em .45em;
+      border-radius:8px;
+      background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.10);
+      font-weight:800;
+      font-size:12px;
+    }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="ui">
+  <div class="topbar">
+    <div class="panel stats" id="stats">
+      <div class="stat"><b>오늘</b><span id="dayText">DAY 0000</span></div>
+      <div class="stat"><b>행동</b><span id="movesText">0</span> <span class="small">/</span> <span id="movesLimitText">0</span></div>
+      <div class="stat"><b>진행률</b><span id="progressText">0%</span></div>
+      <div class="stat"><b>스코어</b><span id="scoreText">0</span> <span class="small">(최고 <span id="bestText">0</span>)</span></div>
+    </div>
+    <div class="right">
+      <div class="panel mini" id="hintPanel" style="max-width:min(460px, 100vw)">
+        <div style="font-weight:900;color:#fff;margin-bottom:4px">힌트</div>
+        <div id="hintText">칸을 클릭/드래그해서 토글하세요. 모든 등불을 제한된 행동 수 안에 올바르게 켜면 승리합니다.</div>
+      </div>
+      <button class="btn" id="restartBtn">재시작 (R)</button>
+      <button class="btn" id="shareBtn">오늘 점수 복사</button>
+    </div>
+  </div>
+
+  <div class="centerMsg panel" id="startPanel">
+    <h1 class="title">오늘의 등불 수수께끼</h1>
+    <p class="subtitle">
+      매일 바뀌는 5x5~7x7 격자 퍼즐입니다. 숫자 힌트와 색상 단서로 정답을 추리하세요.
+      <br/>목표: 제한된 행동 수 안에 모든 등불을 정확히 점등.
+      <br/>조작: <span class="kbd">클릭</span> / <span class="kbd">드래그</span> 로 칸 토글, <span class="kbd">R</span> 재시작, <span class="kbd">Z</span> 되돌리기.
+    </p>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="overlay" id="overlay"></div>
+
+  <div class="card">
+    <div class="panel legend">
+      <span class="pill"><span class="dot" style="background:#7ee7ff;color:#7ee7ff"></span>숫자: 인접한 켜진 등불 수</span>
+      <span class="pill"><span class="dot" style="background:#69f0ae;color:#69f0ae"></span>초록 단서: 반드시 켜짐</span>
+      <span class="pill"><span class="dot" style="background:#ff6b8b;color:#ff6b8b"></span>빨강 단서: 반드시 꺼짐</span>
+      <span class="pill"><span class="dot" style="background:#ffd166;color:#ffd166"></span>제한 행동 초과 = 실패</span>
+    </div>
+    <div class="panel mini" style="max-width:460px">
+      색상 단서는 일부 칸에만 표시됩니다. 숫자와 교차해서 추리하세요.
+      <br/>첫 몇 초는 쉬운 배치로 시작해, 이후 더 촘촘하고 복잡해집니다.
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const els = {
+    dayText: document.getElementById('dayText'),
+    movesText: document.getElementById('movesText'),
+    movesLimitText: document.getElementById('movesLimitText'),
+    progressText: document.getElementById('progressText'),
+    scoreText: document.getElementById('scoreText'),
+    bestText: document.getElementById('bestText'),
+    hintText: document.getElementById('hintText'),
+    startPanel: document.getElementById('startPanel'),
+    overlay: document.getElementById('overlay'),
+    toast: document.getElementById('toast'),
+    restartBtn: document.getElementById('restartBtn'),
+    shareBtn: document.getElementById('shareBtn'),
+  };
+
+  const DAY = new Date();
+  const daySeed = Math.floor(Date.UTC(DAY.getFullYear(), DAY.getMonth(), DAY.getDate()) / 86400000);
+  const bestKey = 'daily_lantern_best_' + daySeed;
+  const state = {
+    seed: daySeed,
+    grid: [],
+    size: 5,
+    solution: [],
+    fixed: [],
+    colorHints: [],
+    numberHints: [],
+    revealedNumbers: [],
+    moves: 0,
+    movesLimit: 0,
+    score: 0,
+    best: +localStorage.getItem(bestKey) || 0,
+    phase: 'start',
+    won: false,
+    lost: false,
+    dragActive: false,
+    dragVisited: new Set(),
+    undo: [],
+    boardRect: null,
+    mouseDown: false
+  };
+  els.bestText.textContent = state.best;
+
+  function rng(seed){
+    let t = seed >>> 0;
+    return () => {
+      t += 0x6D2B79F5;
+      let r = Math.imul(t ^ t >>> 15, 1 | t);
+      r ^= r + Math.imul(r ^ r >>> 7, 61 | r);
+      return ((r ^ r >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const rand = rng(daySeed);
+
+  function genPuzzle(){
+    state.size = 5 + Math.floor(rand()*3);
+    const n = state.size;
+    state.solution = Array.from({length:n}, () => Array.from({length:n}, () => rand() < 0.48 ? 1 : 0));
+    if (state.solution.flat().every(v=>v===0)) state.solution[Math.floor(n/2)][Math.floor(n/2)] = 1;
+
+    state.numberHints = Array.from({length:n},()=>Array(n).fill(null));
+    state.colorHints = Array.from({length:n},()=>Array(n).fill(null));
+    state.fixed = Array.from({length:n},()=>Array(n).fill(false));
+
+    const adj = (x,y) => [[1,0],[-1,0],[0,1],[0,-1]].reduce((a,[dx,dy])=>{
+      const nx=x+dx, ny=y+dy;
+      return a + (nx>=0&&ny>=0&&nx<n&&ny<n ? state.solution[ny][nx] : 0);
+    },0);
+
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) state.numberHints[y][x] = adj(x,y);
+
+    const cells = [];
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) cells.push([x,y,rand()]);
+    cells.sort((a,b)=>a[2]-b[2]);
+    const hintCount = Math.max(6, Math.floor(n*n*0.28));
+    for(let i=0;i<hintCount;i++){
+      const [x,y] = cells[i];
+      state.fixed[y][x] = true;
+      state.colorHints[y][x] = state.solution[y][x] ? 'on' : 'off';
+    }
+
+    state.grid = Array.from({length:n}, () => Array.from({length:n}, () => 0));
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++){
+      if (state.fixed[y][x]) state.grid[y][x] = state.solution[y][x];
+      else state.grid[y][x] = rand() < 0.45 ? 1 : 0;
+    }
+
+    state.movesLimit = Math.floor(n*n*0.42 + n*1.8);
+    state.moves = 0;
+    state.score = 0;
+    state.won = false;
+    state.lost = false;
+    state.phase = 'play';
+    state.undo = [];
+    state.dragVisited.clear();
+    els.startPanel.style.display = 'none';
+    toast(`오늘의 격자 ${n}x${n} — 행동 ${state.movesLimit}회 제한`);
+    updateUI();
+    computeScore();
+  }
+
+  function toast(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>els.toast.classList.remove('show'), 1200);
+  }
+
+  function updateUI(){
+    els.dayText.textContent = `DAY ${String((daySeed % 10000)).padStart(4,'0')}`;
+    els.movesText.textContent = state.moves;
+    els.movesLimitText.textContent = state.movesLimit;
+    els.progressText.textContent = `${Math.round(progress()*100)}%`;
+    els.scoreText.textContent = state.score;
+    els.bestText.textContent = state.best;
+    const left = state.movesLimit - state.moves;
+    let msg = '클릭/드래그로 토글하세요. 숫자 힌트와 색상 단서를 함께 보세요.';
+    if(state.phase === 'play'){
+      if(left <= 3) msg = `마지막 ${left}회! 정답과 매우 가까워야 합니다.`;
+      else if(state.moves < 4) msg = '초반은 쉬운 배치입니다. 녹색 단서가 켜져야 하는 칸을 우선 확인하세요.';
+      else msg = '숫자 0은 주변이 모두 꺼져야 함을 뜻합니다. 색상 단서와 함께 교차 추리하세요.';
+    }
+    if(state.won) msg = '승리! 오늘의 수수께끼를 해결했습니다.';
+    if(state.lost) msg = '실패. 다시 시작해서 더 나은 빌드를 찾으세요.';
+    els.hintText.textContent = msg;
+    els.overlay.classList.toggle('show', state.won || state.lost);
+  }
+
+  function progress(){
+    const n = state.size;
+    let correct = 0, total = n*n;
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(state.grid[y][x] === state.solution[y][x]) correct++;
+    return correct / total;
+  }
+
+  function computeScore(){
+    let p = progress();
+    const left = Math.max(0, state.movesLimit - state.moves);
+    state.score = Math.max(0, Math.round(p*1000 + left*12 - state.moves*4));
+    if(state.score > state.best){
+      state.best = state.score;
+      localStorage.setItem(bestKey, String(state.best));
+    }
+    updateUI();
+  }
+
+  function isValidSolution(){
+    const n = state.size;
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++){
+      if(state.fixed[y][x] && state.grid[y][x] !== state.solution[y][x]) return false;
+      if(state.grid[y][x] !== state.solution[y][x]) return false;
+    }
+    return true;
+  }
+
+  function checkEnd(){
+    if(isValidSolution()){
+      state.won = true;
+      state.phase = 'end';
+      toast('정답! 오늘의 등불이 모두 정확히 밝혀졌습니다.');
+      updateUI();
+      computeScore();
+      return;
+    }
+    if(state.moves >= state.movesLimit){
+      state.lost = true;
+      state.phase = 'end';
+      toast('행동 수 초과! 오늘의 퍼즐은 실패했습니다.');
+      updateUI();
+      computeScore();
+    }
+  }
+
+  function toggleCell(x,y){
+    if(state.phase !== 'play' || state.won || state.lost) return;
+    if(x<0||y<0||x>=state.size||y>=state.size) return;
+    if(state.dragVisited.has(y*100+x)) return;
+    state.dragVisited.add(y*100+x);
+    state.undo.push({x,y,prev:state.grid[y][x]});
+    state.grid[y][x] = state.grid[y][x] ? 0 : 1;
+    state.moves++;
+    computeScore();
+    checkEnd();
+  }
+
+  function undoMove(){
+    if(!state.undo.length || state.phase !== 'play') return;
+    const m = state.undo.pop();
+    state.grid[m.y][m.x] = m.prev;
+    state.moves = Math.max(0, state.moves-1);
+    computeScore();
+  }
+
+  function reset(){
+    state.grid = state.grid.map((row,y)=>row.map((v,x)=> state.fixed[y][x] ? state.solution[y][x] : (rand() < 0.45 ? 1 : 0)));
+    state.moves = 0;
+    state.score = 0;
+    state.won = false;
+    state.lost = false;
+    state.phase = 'play';
+    state.undo = [];
+    state.dragVisited.clear();
+    els.startPanel.style.display = 'none';
+    updateUI();
+    toast('재시작했습니다.');
+  }
+
+  function layout(){
+    const w = canvas.width, h = canvas.height;
+    const n = state.size;
+    const pad = Math.min(w,h) * 0.06;
+    const top = 120;
+    const bottom = 120;
+    const side = 18;
+    const boardSize = Math.min(w - side*2, h - top - bottom);
+    const cell = Math.floor(boardSize / n);
+    const bw = cell*n, bh = cell*n;
+    const x = Math.floor((w - bw)/2);
+    const y = Math.floor((h - bh)/2) + 20;
+    state.boardRect = {x,y,cell,bw,bh,n};
+  }
+
+  function resize(){
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    layout();
+  }
+  window.addEventListener('resize', resize);
+
+  function draw(){
+    const w = innerWidth, h = innerHeight;
+    ctx.clearRect(0,0,w,h);
+
+    const t = performance.now()*0.001;
+    const grad = ctx.createRadialGradient(w*0.5,h*0.35, 20, w*0.5,h*0.4, Math.max(w,h)*0.9);
+    grad.addColorStop(0,'rgba(44,66,126,.35)');
+    grad.addColorStop(0.45,'rgba(12,18,38,.22)');
+    grad.addColorStop(1,'rgba(6,9,17,1)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,w,h);
+
+    const {x,y,cell,bw,bh,n} = state.boardRect;
+    for(let yy=0; yy<n; yy++){
+      for(let xx=0; xx<n; xx++){
+        const px = x + xx*cell, py = y + yy*cell;
+        const on = state.grid[yy][xx];
+        const fixed = state.fixed[yy][xx];
+        const hint = state.colorHints[yy][xx];
+
+        ctx.save();
+        ctx.shadowColor = on ? 'rgba(255,196,77,.18)' : 'rgba(0,0,0,.25)';
+        ctx.shadowBlur = on ? 16 : 8;
+        const rr = Math.max(7, cell*0.16);
+        roundRect(ctx, px+2, py+2, cell-4, cell-4, rr);
+        ctx.fillStyle = on ? `rgba(255,224,138,${fixed?0.98:0.92})` : (fixed ? 'rgba(23,34,60,.98)' : 'rgba(20,28,47,.95)');
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = fixed ? 'rgba(255,255,255,.18)' : 'rgba(149,176,232,.12)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if(on){
+          const gx = px + cell*0.5, gy = py + cell*0.5;
+          const glow = ctx.createRadialGradient(gx,gy, 2, gx,gy, cell*0.45);
+          glow.addColorStop(0,'rgba(255,255,255,.95)');
+          glow.addColorStop(.45,'rgba(255,225,154,.9)');
+          glow.addColorStop(1,'rgba(255,170,60,0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(gx,gy, cell*0.45, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.8)';
+          ctx.beginPath(); ctx.arc(gx,gy, Math.max(4, cell*0.11), 0, Math.PI*2); ctx.fill();
+        }
+
+        if(hint){
+          ctx.fillStyle = hint === 'on' ? 'rgba(105,240,174,.9)' : 'rgba(255,107,139,.9)';
+          ctx.font = `800 ${Math.max(12, cell*0.2)}px system-ui`;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.fillText(hint === 'on' ? '●' : '×', px + cell - 7, py + 6);
+        }
+
+        ctx.fillStyle = on ? 'rgba(15,18,26,.8)' : 'rgba(220,235,255,.88)';
+        ctx.font = `900 ${Math.max(13, cell*0.26)}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(state.numberHints[yy][xx]), px + cell*0.5, py + cell*0.56);
+
+        if(state.fixed[yy][xx]){
+          ctx.strokeStyle = 'rgba(255,255,255,.16)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(px+5,py+5,cell-10,cell-10);
+        }
+        ctx.restore();
+      }
+    }
+
+    ctx.strokeStyle = 'rgba(140,180,255,.12)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x+1,y+1,bw-2,bh-2);
+
+    ctx.fillStyle = 'rgba(255,255,255,.08)';
+    ctx.font = '700 13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('숫자는 주변 4방향의 켜진 등불 수', w*0.5, y + bh + 28);
+
+    if(state.won || state.lost){
+      ctx.save();
+      ctx.fillStyle = state.won ? 'rgba(8,20,16,.72)' : 'rgba(24,8,14,.72)';
+      ctx.fillRect(0,0,w,h);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.font = '900 52px system-ui';
+      ctx.fillText(state.won ? '승리' : '실패', w*0.5, h*0.42);
+      ctx.font = '700 18px system-ui';
+      ctx.fillStyle = 'rgba(255,255,255,.84)';
+      ctx.fillText(state.won ? '오늘의 퍼즐을 완성했습니다.' : '행동 수를 초과했습니다.', w*0.5, h*0.42 + 36);
+      ctx.fillStyle = 'rgba(255,255,255,.72)';
+      ctx.fillText('R: 재시작  |  Z: 되돌리기  |  오늘 점수는 저장됩니다', w*0.5, h*0.42 + 66);
+      ctx.restore();
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function posToCell(ev){
+    const rect = canvas.getBoundingClientRect();
+    const mx = (ev.clientX - rect.left);
+    const my = (ev.clientY - rect.top);
+    const b = state.boardRect;
+    const x = Math.floor((mx - b.x) / b.cell);
+    const y = Math.floor((my - b.y) / b.cell);
+    if(mx < b.x || my < b.y || mx >= b.x+b.bw || my >= b.y+b.bh) return null;
+    return {x,y};
+  }
+
+  canvas.addEventListener('pointerdown', ev => {
+    canvas.setPointerCapture(ev.pointerId);
+    state.mouseDown = true;
+    state.dragVisited.clear();
+    const c = posToCell(ev);
+    if(c) toggleCell(c.x,c.y);
+    if(state.phase === 'start') {
+      state.phase = 'play';
+      els.startPanel.style.display = 'none';
+    }
+  });
+  canvas.addEventListener('pointermove', ev => {
+    if(!state.mouseDown) return;
+    const c = posToCell(ev);
+    if(c) toggleCell(c.x,c.y);
+  });
+  canvas.addEventListener('pointerup', () => { state.mouseDown = false; state.dragVisited.clear(); });
+  canvas.addEventListener('pointerleave', () => { state.mouseDown = false; state.dragVisited.clear(); });
+
+  window.addEventListener('keydown', ev => {
+    if(ev.key === 'r' || ev.key === 'R') reset();
+    if(ev.key === 'z' || ev.key === 'Z') undoMove();
+    if(ev.key === 'Escape' && (state.won || state.lost)) reset();
+  });
+
+  els.restartBtn.addEventListener('click', reset);
+  els.shareBtn.addEventListener('click', async () => {
+    const txt = `오늘의 등불 수수께끼 ${state.size}x${state.size} - 점수 ${state.score}점 (최고 ${state.best}점)`;
+    try{
+      await navigator.clipboard.writeText(txt);
+      toast('점수가 클립보드에 복사되었습니다.');
+    }catch(e){
+      toast(txt);
+    }
+  });
+
+  resize();
+  genPuzzle();
+  updateUI();
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
