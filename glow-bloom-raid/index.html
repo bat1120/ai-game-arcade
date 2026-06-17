@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Bloom Circuit: Seedlink Garden</title>
+<style>
+  html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#09101f; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+  .ui { position:fixed; inset:0; pointer-events:none; color:#f4f7ff; }
+  .glass {
+    backdrop-filter: blur(10px);
+    background: rgba(9, 15, 31, .60);
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 16px 40px rgba(0,0,0,.28);
+  }
+  .panel {
+    position:absolute; left:12px; top:12px; padding:10px 12px; border-radius:16px;
+    min-width: 290px; pointer-events:none;
+  }
+  .title { display:flex; align-items:center; gap:8px; font-weight:900; letter-spacing:.3px; font-size:18px; margin-bottom:8px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#8ef2a8; box-shadow:0 0 16px #8ef2a8; }
+  .stats { display:grid; grid-template-columns: 1fr 1fr; gap:6px 10px; font-size:13px; line-height:1.2; }
+  .stats b { color:#fff1a8; }
+  .barWrap { margin-top:10px; }
+  .barLabel { display:flex; justify-content:space-between; font-size:12px; color:#dce6ff; margin-bottom:4px; }
+  .bar {
+    height:10px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.11);
+  }
+  .bar > div { height:100%; width:50%; border-radius:999px; background:linear-gradient(90deg,#7dd8ff,#91ffb1,#ffe17c); box-shadow:0 0 18px rgba(125,216,255,.38); transition:width .12s linear, filter .12s linear; }
+  .bar.warn > div { background:linear-gradient(90deg,#ff8ab5,#ffdb7f); filter:saturate(1.2) brightness(1.08); }
+  .hint {
+    position:absolute; right:12px; top:12px; width:min(390px, calc(100vw - 24px));
+    padding:10px 12px; border-radius:16px; pointer-events:none;
+    font-size:13px; line-height:1.45; color:#dde7ff;
+  }
+  .key {
+    display:inline-block; padding:2px 7px; border-radius:8px; background:rgba(255,255,255,.12);
+    color:#fff; margin:0 2px; font-weight:700;
+  }
+  .hudBottom {
+    position:absolute; left:12px; bottom:12px; display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;
+    padding:10px 12px; border-radius:16px; pointer-events:none;
+  }
+  .chip, button {
+    pointer-events:auto;
+    border:none; outline:none; border-radius:12px; padding:10px 12px; font-weight:800;
+    background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 8px 24px rgba(0,0,0,.25);
+  }
+  button:hover { background:rgba(255,255,255,.18); }
+  .chip { font-size:13px; }
+  .status {
+    min-width: 160px;
+    background:rgba(255,255,255,.10);
+    padding:9px 12px;
+    border-radius:999px;
+    font-size:13px;
+  }
+  .center {
+    position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;
+  }
+  .modal {
+    pointer-events:auto;
+    width:min(560px, calc(100vw - 24px));
+    border-radius:20px;
+    padding:16px 16px 14px;
+    text-align:center;
+  }
+  .modal h1 { margin:0 0 8px; font-size:30px; letter-spacing:.4px; }
+  .modal p { margin:8px 0; line-height:1.5; color:#dbe5ff; font-size:14px; }
+  .modal .small { font-size:12.5px; color:#b9c7f2; }
+  .row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+  .hide { display:none !important; }
+  .tipCard {
+    margin-top:10px; border-radius:14px; padding:10px 12px; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.10); text-align:left; font-size:13px; color:#dce6ff;
+  }
+  .mini {
+    display:inline-block; min-width:1.4em; text-align:center; padding:0 6px; border-radius:8px;
+    background:rgba(255,255,255,.11); margin-right:4px;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="ui">
+  <div class="panel glass" id="hudPanel">
+    <div class="title"><span class="dot"></span>Bloom Circuit</div>
+    <div class="stats">
+      <div>씨앗 수: <b id="seedCount">0</b></div>
+      <div>성장 단계: <b id="growthStage">1</b></div>
+      <div>잡초: <b id="weedPct">0%</b></div>
+      <div>자동 수확: <b id="harvestTimer">0.0s</b></div>
+      <div>목표 점수: <b id="targetScore">0</b></div>
+      <div>점수: <b id="score">0</b></div>
+      <div>자원: <b id="res">0</b></div>
+      <div>최고점수: <b id="best">0</b></div>
+    </div>
+    <div class="barWrap">
+      <div class="barLabel"><span>목표 진행</span><span id="progressText">0%</span></div>
+      <div class="bar"><div id="progressBar"></div></div>
+    </div>
+  </div>
+
+  <div class="hint glass">
+    <b>조작 / 흐름</b><br>
+    <span class="key">드래그</span> 같은 색 토양 칸에 씨앗을 연속 심기<br>
+    <span class="key">클릭/탭</span> 현재 씨앗 색으로 한 칸 심기<br>
+    <span class="key">Space</span> 자동 수확 즉시 발동(자원 1 소모)<br>
+    <span class="key">R</span> 재시작
+    <div class="tipCard" id="tipCard">
+      <span class="mini">1</span>왼쪽 위 보드의 하이라이트 칸을 먼저 따라가 보세요.<br>
+      <span class="mini">2</span>같은 색 토양을 길게 잇을수록 자동 개화 보너스가 커집니다.<br>
+      <span class="mini">3</span>자동 수확마다 점수·자원·씨앗이 늘고, 성장 단계마다 3택1 업그레이드가 열립니다.
+    </div>
+  </div>
+
+  <div class="hudBottom glass">
+    <button id="restartBtn">재시작</button>
+    <div class="status" id="statusChip">즉시 플레이 가능</div>
+  </div>
+
+  <div class="center hide" id="endOverlay">
+    <div class="modal glass">
+      <h1 id="endTitle">게임 종료</h1>
+      <p id="endDesc"></p>
+      <div class="row">
+        <button id="restartBtn2">다시 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="center hide" id="upgradeOverlay">
+    <div class="modal glass" style="width:min(620px, calc(100vw - 24px));">
+      <h1>성장 선택</h1>
+      <p id="upgradeDesc">업그레이드를 선택하세요.</p>
+      <div class="row" id="upgradeChoices"></div>
+      <p class="small">방치형 자동 진행 중에도 전략적 분기가 생깁니다. 선택은 즉시 보드 운영에 영향을 줍니다.</p>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const ui = {
+    seedCount: document.getElementById('seedCount'),
+    growthStage: document.getElementById('growthStage'),
+    weedPct: document.getElementById('weedPct'),
+    harvestTimer: document.getElementById('harvestTimer'),
+    targetScore: document.getElementById('targetScore'),
+    score: document.getElementById('score'),
+    res: document.getElementById('res'),
+    best: document.getElementById('best'),
+    progressBar: document.getElementById('progressBar'),
+    progressText: document.getElementById('progressText'),
+    statusChip: document.getElementById('statusChip'),
+    endOverlay: document.getElementById('endOverlay'),
+    endTitle: document.getElementById('endTitle'),
+    endDesc: document.getElementById('endDesc'),
+    restartBtn: document.getElementById('restartBtn'),
+    restartBtn2: document.getElementById('restartBtn2'),
+    upgradeOverlay: document.getElementById('upgradeOverlay'),
+    upgradeDesc: document.getElementById('upgradeDesc'),
+    upgradeChoices: document.getElementById('upgradeChoices'),
+    hudPanel: document.getElementById('hudPanel'),
+    tipCard: document.getElementById('tipCard'),
+  };
+
+  const colors = ['#ff6ea8', '#6be6ff', '#b6ff72', '#ffd56b'];
+  const soilColors = ['#40204f', '#174b59', '#314d1f', '#5b4720'];
+  const bestKey = 'bloom_circuit_best_v3';
+
+  let W=0,H=0,dpr=1,state,dragPointer={down:false};
+
+  function loadBest(){ return +localStorage.getItem(bestKey) || 0; }
+  function saveBest(v){ localStorage.setItem(bestKey, String(v)); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  function resize(){
+    dpr = Math.max(1, Math.min(2, devicePixelRatio || 1));
+    W = canvas.width = Math.floor(innerWidth * dpr);
+    H = canvas.height = Math.floor(innerHeight * dpr);
+  }
+  addEventListener('resize', resize, {passive:true});
+
+  function rr(x,y,w,h,r,fill=true,stroke=false){
+    if(typeof r === 'number') r = {tl:r,tr:r,br:r,bl:r};
+    ctx.beginPath();
+    ctx.moveTo(x+r.tl, y);
+    ctx.lineTo(x+w-r.tr, y);
+    ctx.quadraticCurveTo(x+w, y, x+w, y+r.tr);
+    ctx.lineTo(x+w, y+h-r.br);
+    ctx.quadraticCurveTo(x+w, y+h, x+w-r.br, y+h);
+    ctx.lineTo(x+r.bl, y+h);
+    ctx.quadraticCurveTo(x, y+h, x, y+h-r.bl);
+    ctx.lineTo(x, y+r.tl);
+    ctx.quadraticCurveTo(x, y, x+r.tl, y);
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
+  }
+
+  function makeBoard(cols, rows){
+    const cell = Math.floor(Math.min(innerWidth/(cols+2), innerHeight/(rows+3.1)));
+    const boardW = cols * cell, boardH = rows * cell;
+    const ox = Math.floor((innerWidth - boardW)/2);
+    const oy = Math.floor((innerHeight - boardH)/2 + 8);
+    const cells = [];
+    for(let y=0; y<rows; y++) for(let x=0; x<cols; x++){
+      const soil = (x + y*2) % colors.length;
+      cells.push({
+        x, y, soil, weed:0, seed:null, growth:0, bloom:0, pulse:0, spark:0,
+        rect:{ x: ox + x*cell, y: oy + y*cell, w:cell, h:cell },
+      });
+    }
+    return {cells, cols, rows, cell, ox, oy};
+  }
+
+  function newGame(){
+    const cols = Math.max(7, Math.min(10, Math.floor(innerWidth / 118)));
+    const rows = Math.max(6, Math.min(8, Math.floor(innerHeight / 110)));
+    const board = makeBoard(cols, rows);
+    state = {
+      started:true, over:false, win:false, pausedUpgrade:false,
+      t:0, score:0, resources:6, seeds:8, growthStage:1, combo:1,
+      targetScore:150, harvestCd:8.7, harvestBase:8.7, weedSpawnTimer:0.85,
+      selectedSeedColor:0, dragPath:[], dragging:false, firstPlantShown:false, firstHarvestShown:false,
+      boardFlash:0, harvestFlash:0, targetFlash:0, weedFlash:0,
+      best: loadBest(), upgradesTaken:0, levelUpAt:45, goalPulse:0,
+      message:'',
+      ...board
+    };
+    ui.best.textContent = state.best;
+    ui.endOverlay.classList.add('hide');
+    ui.upgradeOverlay.classList.add('hide');
+    ui.tipCard.innerHTML = '<span class="mini">1</span>왼쪽 위 보드의 하이라이트 칸을 먼저 따라가 보세요.<br><span class="mini">2</span>같은 색 토양을 길게 잇을수록 자동 개화 보너스가 커집니다.<br><span class="mini">3</span>자동 수확마다 점수·자원·씨앗이 늘고, 성장 단계마다 3택1 업그레이드가 열립니다.';
+    ui.statusChip.textContent = '즉시 플레이 가능';
+    updateUI();
+  }
+
+  function cellAt(px,py){
+    return state.cells.find(c => px >= c.rect.x && px < c.rect.x+c.rect.w && py >= c.rect.y && py < c.rect.y+c.rect.h);
+  }
+  function neighborsOf(c){
+    const out = [];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const x = c.x + dx, y = c.y + dy;
+      if(x>=0 && x<state.cols && y>=0 && y<state.rows) out.push(state.cells[y*state.cols + x]);
+    }
+    return out;
+  }
+  function weedPercent(){
+    let count = 0;
+    for(const c of state.cells) if(c.weed >= 1) count++;
+    return Math.round(count / state.cells.length * 100);
+  }
+  function updateUI(){
+    const weed = weedPercent();
+    ui.seedCount.textContent = state.seeds;
+    ui.growthStage.textContent = state.growthStage;
+    ui.weedPct.textContent = weed + '%';
+    ui.harvestTimer.textContent = Math.max(0, state.harvestCd).toFixed(1) + 's';
+    ui.targetScore.textContent = state.targetScore;
+    ui.score.textContent = state.score;
+    ui.res.textContent = state.resources;
+    ui.best.textContent = state.best;
+    const prog = clamp(state.score / state.targetScore, 0, 1);
+    ui.progressBar.style.width = (prog*100).toFixed(1) + '%';
+    ui.progressText.textContent = Math.floor(prog*100) + '%';
+    ui.progressBar.parentElement.classList.toggle('warn', prog > 0.72 || weed > 68);
+    ui.statusChip.textContent = state.over ? (state.win ? '승리' : '패배') : (state.pausedUpgrade ? '업그레이드 선택' : '자동 진행 중');
+    ui.hudPanel.style.transform = `translateY(${state.harvestFlash > 0 ? Math.sin(state.t*18)*1.5 : 0}px)`;
+  }
+
+  function canPlant(c){
+    return !!c && !state.over && !state.pausedUpgrade && state.seeds > 0 && !c.seed && c.weed < 1 && c.soil === state.selectedSeedColor;
+  }
+  function plantCell(c, fromDrag=false){
+    if(!canPlant(c)) return false;
+    c.seed = { color:c.soil, age:0, stage:1, chain:0 };
+    c.growth = 0; c.bloom = 0; c.pulse = 1; c.spark = 1;
+    state.seeds--;
+    const same = neighborsOf(c).filter(n => n.seed && n.seed.color === c.seed.color).length;
+    c.seed.chain = same;
+    state.score += 1 + same;
+    state.resources += same ? 1 : 0;
+    if(fromDrag) state.combo = clamp(state.combo + 0.18, 1, 8);
+    state.selectedSeedColor = (state.selectedSeedColor + 1) % colors.length;
+    state.boardFlash = 0.35;
+    if(!state.firstPlantShown){
+      state.firstPlantShown = true;
+      ui.tipCard.innerHTML = '<span class="mini">✓</span>씨앗이 심겼습니다. 같은 색 토양을 이어 심으면 자동 수확 때 꽃이 더 크게 연쇄 개화합니다.<br><span class="mini">+</span>보드 위의 점선 경로를 따라가면 예시가 더 잘 보입니다.';
+    } else {
+      ui.tipCard.innerHTML = '<span class="mini">+</span>연결 성공! 같은 색이 길어질수록 보너스가 커지고, 씨앗과 자원이 조금씩 다시 돌아옵니다.<br><span class="mini">⏱</span>자동 수확이 가까워질수록 성장 연출이 더 자주 터집니다.';
+    }
+    ui.statusChip.textContent = fromDrag ? '연결 중' : '심기 완료';
+    return true;
+  }
+
+  function spreadWeeds(dt){
+    const pressure = 0.013 + state.t * 0.00125;
+    state.weedSpawnTimer -= dt;
+    for(const c of state.cells){
+      if(c.seed) c.weed = Math.max(0, c.weed - dt*0.04);
+      else c.weed = clamp(c.weed + dt*pressure * (0.58 + Math.random()*0.45), 0, 1);
+      c.bloom = Math.max(0, c.bloom - dt*1.2);
+      c.pulse = Math.max(0, c.pulse - dt*1.8);
+      c.spark = Math.max(0, c.spark - dt*2.4);
+    }
+    if(state.weedSpawnTimer <= 0){
+      state.weedSpawnTimer = Math.max(0.52, 1.55 - state.growthStage * 0.08);
+      const count = 2 + Math.floor(state.t/18);
+      for(let i=0;i<count;i++){
+        const c = state.cells[(Math.random()*state.cells.length)|0];
+        if(!c.seed) c.weed = clamp(c.weed + rand(.12,.26), 0, 1);
+      }
+      state.weedFlash = 1;
+    }
+  }
+
+  function openUpgrade(){
+    if(state.pausedUpgrade || state.over) return;
+    state.pausedUpgrade = true;
+    ui.upgradeOverlay.classList.remove('hide');
+    ui.upgradeChoices.innerHTML = '';
+    const options = [
+      {name:'수확 가속', desc:'자동 수확 타이머가 즉시 당겨집니다.', apply(){ state.harvestBase = Math.max(4.5, state.harvestBase - 1.2); state.harvestCd = Math.min(state.harvestCd, state.harvestBase - 0.3); }},
+      {name:'잡초 억제', desc:'맵 전역 잡초를 크게 깎습니다.', apply(){ for(const c of state.cells) c.weed = Math.max(0, c.weed - 0.36); state.weedFlash = 1; }},
+      {name:'씨앗 증식', desc:'씨앗을 더 받아 다음 연결을 넓힙니다.', apply(){ state.seeds += 4; state.resources += 2; }},
+    ];
+    ui.upgradeDesc.textContent = `성장 단계 ${state.growthStage} 도달! 지금의 정원을 다음 파도로 이어가기 위한 3택1 보상입니다.`;
+    options.forEach(opt => {
+      const b = document.createElement('button');
+      b.textContent = opt.name;
+      b.onclick = () => {
+        opt.apply();
+        state.upgradesTaken++;
+        state.combo = 1;
+        state.pausedUpgrade = false;
+        ui.upgradeOverlay.classList.add('hide');
+        state.levelUpAt = Math.floor(45 + state.growthStage*22 + state.upgradesTaken*10);
+        state.harvestCd = Math.max(2.0, state.harvestCd - 0.8);
+        ui.tipCard.innerHTML = '<span class="mini">★</span>업그레이드 선택 완료! 성장 단계가 올라갈수록 잡초 압박과 자동 수확 리듬이 함께 빨라집니다.';
+        ui.statusChip.textContent = '보상 획득';
+        updateUI();
+      };
+      ui.upgradeChoices.appendChild(b);
+    });
+  }
+
+  function harvest(){
+    let flowers = 0, gain = 0, resGain = 0, seedGain = 0, linkBonus = 0;
+    for(const c of state.cells){
+      if(!c.seed) continue;
+      flowers++;
+      const same = neighborsOf(c).filter(n => n.seed && n.seed.color === c.seed.color).length;
+      c.seed.stage = Math.min(6, 1 + Math.floor(c.seed.age / 4.6));
+      c.seed.age = 0;
+      c.seed.chain = clamp(c.seed.chain + same + 1, 0, 10);
+      c.bloom = 1;
+      c.pulse = 1;
+      c.spark = 1;
+      const base = 4 + c.seed.stage * 2 + c.seed.chain * 1.1;
+      gain += base;
+      linkBonus += same * 2;
+      resGain += Math.max(1, Math.floor((same + c.seed.chain) / 3));
+      if(c.seed.stage >= 3 && Math.random() < 0.22) seedGain++;
+    }
+    const comboMult = 1 + Math.min(1.8, (state.combo - 1) * 0.12);
+    const chainMult = 1 + Math.min(1.8, linkBonus * 0.05);
+    const total = Math.max(1, Math.floor((gain + linkBonus) * comboMult * chainMult));
+    state.score += total;
+    state.resources += resGain + Math.floor(flowers / 5);
+    state.seeds += Math.min(4, 1 + Math.floor(flowers / 6) + seedGain);
+    state.harvestFlash = 1;
+    state.targetFlash = 1;
+    state.goalPulse = 1;
+    state.firstHarvestShown = true;
+    state.combo = clamp(state.combo + 0.45, 1, 8);
+    state.lastEarned = total;
+    state.harvestCd = Math.max(5.7, state.harvestBase - state.growthStage * 0.25 - Math.min(1.8, state.resources * 0.015));
+    if(state.score > state.best){ state.best = state.score; saveBest(state.best); }
+    ui.tipCard.innerHTML = `<span class="mini">◎</span>자동 개화! 이번 수확으로 <b>+${total}</b>점, 자원 +${resGain + Math.floor(flowers/5)}, 씨앗 +${Math.min(4, 1 + Math.floor(flowers / 6) + seedGain)}.<br><span class="mini">↗</span>같은 색 연결 보너스와 콤보가 다음 수확을 더 키웁니다.`;
+    if(state.score >= state.targetScore){ winGame(); return; }
+    if(state.score >= state.levelUpAt) openUpgrade();
+  }
+
+  function winGame(){
+    state.over = true; state.win = true;
+    ui.endTitle.textContent = '꽃밭 완성!';
+    ui.endDesc.textContent = `목표 점수 ${state.targetScore}를 달성했습니다. 최종 점수 ${state.score}, 자원 ${state.resources}, 업그레이드 ${state.upgradesTaken}회.`;
+    ui.endOverlay.classList.remove('hide');
+    state.best = Math.max(state.best, state.score); saveBest(state.best);
+    ui.statusChip.textContent = '승리';
+  }
+
+  function loseGame(){
+    state.over = true; state.win = false;
+    ui.endTitle.textContent = '정원이 잡초로 잠식되었습니다';
+    ui.endDesc.textContent = `더 이상 씨앗을 심을 칸이 없습니다. 최종 점수 ${state.score}, 목표 ${state.targetScore}.`;
+    ui.endOverlay.classList.remove('hide');
+    state.best = Math.max(state.best, state.score); saveBest(state.best);
+    ui.statusChip.textContent = '패배';
+  }
+
+  function step(dt){
+    if(!state || state.over) return;
+    if(state.pausedUpgrade){ updateUI(); return; }
+    state.t += dt;
+    state.growthStage = 1 + Math.floor(state.t / 16.5);
+    state.targetScore = 150 + Math.floor(state.growthStage * 18);
+    state.harvestBase = Math.max(4.8, 8.7 - state.growthStage * 0.18);
+    state.harvestCd -= dt;
+    state.boardFlash = Math.max(0, state.boardFlash - dt*1.2);
+    state.harvestFlash = Math.max(0, state.harvestFlash - dt*1.8);
+    state.targetFlash = Math.max(0, state.targetFlash - dt*1.4);
+    state.weedFlash = Math.max(0, state.weedFlash - dt*1.25);
+    state.combo = Math.max(1, state.combo - dt*0.08);
+    state.goalPulse = Math.max(0, state.goalPulse - dt*1.6);
+
+    for(const c of state.cells){
+      if(c.seed){
+        c.seed.age += dt;
+        c.seed.stage = Math.min(6, 1 + Math.floor(c.seed.age / 4.6));
+        c.growth = clamp(c.growth + dt*(0.15 + c.seed.stage*0.07), 0, 1);
+        c.spark = Math.max(0, c.spark - dt*0.7);
+      } else {
+        c.growth = Math.max(0, c.growth - dt*0.2);
+      }
+    }
+
+    spreadWeeds(dt);
+
+    if(state.harvestCd <= 0) harvest();
+
+    const weed = weedPercent();
+    const planted = state.cells.filter(c => c.seed).length;
+    if(weed >= 92 || (weed >= 80 && planted <= 1) || state.cells.every(c => c.weed >= 1 || c.seed)) loseGame();
+    if(state.score > state.best){ state.best = state.score; saveBest(state.best); }
+    if(state.score >= state.targetScore) winGame();
+    updateUI();
+  }
+
+  function drawCell(c, t){
+    const r = c.rect, x = r.x*dpr, y = r.y*dpr, w = r.w*dpr, h = r.h*dpr;
+    ctx.fillStyle = soilColors[c.soil];
+    ctx.globalAlpha = 0.95;
+    rr(x+1, y+1, w-2, h-2, 10*dpr, true, false);
+    ctx.globalAlpha = 1;
+
+    if(c.weed > 0){
+      const alpha = 0.12 + c.weed*0.72;
+      ctx.fillStyle = `rgba(58, 182, 85, ${alpha})`;
+      ctx.fillRect(x+2, y+2, w-4, h-4);
+      ctx.fillStyle = `rgba(24, 72, 34, ${alpha*0.95})`;
+      const blades = 3 + Math.floor(c.weed*3);
+      for(let i=0;i<blades;i++){
+        const bx = x + w*(0.18 + i*0.2) + Math.sin(t*2.3+i)*3*dpr;
+        const by = y + h*(0.72 - (i%2)*0.08);
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.quadraticCurveTo(bx-4*dpr, by-12*dpr, bx+4*dpr, by-20*dpr);
+        ctx.quadraticCurveTo(bx+8*dpr, by-10*dpr, bx+1*dpr, by);
+        ctx.fill();
+      }
+      if(c.weed >= 1){
+        ctx.fillStyle = `rgba(255,110,170,${0.12 + Math.sin(t*8+c.x+c.y)*0.06})`;
+        ctx.fillRect(x+1, y+1, w-2, h-2);
+      }
+    }
+
+    const centerPulse = c.seed ? 0.28 + c.seed.stage*0.05 + c.pulse*0.13 : 0.02;
+    ctx.strokeStyle = `rgba(255,255,255,${centerPulse})`;
+    ctx.lineWidth = 2*dpr;
+    ctx.beginPath(); ctx.rect(x+1.5, y+1.5, w-3, h-3); ctx.stroke();
+
+    if(c.seed){
+      const cx = x + w/2, cy = y + h/2;
+      const g = c.growth, st = c.seed.stage;
+      ctx.strokeStyle = `rgba(255,255,255,${0.08 + c.pulse*0.22})`;
+      ctx.lineWidth = 2*dpr;
+      ctx.beginPath(); ctx.arc(cx, cy, w*0.28 + c.pulse*6*dpr, 0, Math.PI*2); ctx.stroke();
+
+      ctx.fillStyle = colors[c.seed.color];
+      ctx.beginPath();
+      ctx.arc(cx, cy + (1-g)*10*dpr, 6*dpr + st*2.2*dpr + c.pulse*1.2*dpr, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.strokeStyle = colors[c.seed.color];
+      ctx.lineWidth = 2*dpr;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 2*dpr);
+      ctx.quadraticCurveTo(cx-8*dpr, cy-10*dpr, cx-10*dpr, cy-22*dpr*Math.min(1,g+0.2));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy-6*dpr);
+      ctx.quadraticCurveTo(cx+10*dpr, cy-16*dpr*Math.min(1,g+0.2), cx+12*dpr, cy-30*dpr*Math.min(1,g+0.2));
+      ctx.stroke();
+
+      if(st >= 3){
+        ctx.fillStyle = `rgba(255,255,255,${0.17 + c.pulse*0.22})`;
+        ctx.beginPath(); ctx.arc(cx, cy - 22*dpr*g, 5*dpr + c.pulse*2*dpr, 0, Math.PI*2); ctx.fill();
+      }
+      if(c.seed.chain > 0){
+        ctx.fillStyle = `rgba(255,255,255,${0.16 + Math.min(0.32, c.seed.chain * 0.03)})`;
+        ctx.font = `${11*dpr}px system-ui`;
+        ctx.textAlign = 'center';
+        ctx.fillText('+' + c.seed.chain, cx, cy + 16*dpr);
+      }
+    }
+
+    if(c.spark > 0){
+      ctx.fillStyle = `rgba(255,255,255,${c.spark*0.25})`;
+      ctx.fillRect(x+2, y+2, w-4, h-4);
+    }
+    ctx.strokeStyle = `rgba(255,255,255,${0.09 + c.pulse*0.08})`;
+    ctx.lineWidth = 1*dpr;
+    rr(x+1, y+1, w-2, h-2, 10*dpr, false, true);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const t = state.t || 0;
+    const bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0, '#09101f');
+    bg.addColorStop(1, '#121a35');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,W,H);
+
+    for(let i=0;i<90;i++){
+      const x = (i*113 + t*16) % W;
+      const y = (i*61 + t*11) % H;
+      ctx.fillStyle = `rgba(255,255,255,${0.02 + (i%7)*0.003})`;
+      ctx.beginPath(); ctx.arc(x, y, 1.1*dpr, 0, Math.PI*2); ctx.fill();
+    }
+
+    const prog = clamp(state.score / state.targetScore, 0, 1);
+    const pulse = Math.sin(t*4)*0.5 + 0.5;
+
+    for(const c of state.cells) drawCell(c, t);
+
+    const hi = state.cells.find(c => c.x===0 && c.y===0);
+    if(hi){
+      const rr0 = hi.rect;
+      const x = rr0.x*dpr, y = rr0.y*dpr, w = rr0.w*dpr, h = rr0.h*dpr;
+      ctx.strokeStyle = `rgba(255,255,255,${0.55 + pulse*0.25})`;
+      ctx.lineWidth = 3*dpr;
+      ctx.setLineDash([8*dpr, 6*dpr]);
+      rr(x-1, y-1, w+2, h+2, 12*dpr, false, true);
+      ctx.setLineDash([]);
+    }
+
+    if(state.dragging && state.dragPath.length){
+      ctx.strokeStyle = 'rgba(255,255,255,.60)';
+      ctx.lineWidth = 4*dpr;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      state.dragPath.forEach((c,i) => {
+        const r = c.rect, cx = (r.x+r.w/2)*dpr, cy = (r.y+r.h/2)*dpr;
+        if(i===0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+      });
+      ctx.stroke();
+      for(const c of state.dragPath){
+        const r = c.rect, cx = (r.x+r.w/2)*dpr, cy = (r.y+r.h/2)*dpr;
+        ctx.fillStyle = colors[c.soil];
+        ctx.beginPath(); ctx.arc(cx, cy, 6*dpr, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    const barW = Math.max(20, W - 40*dpr);
+    const barY = H - 18*dpr;
+    ctx.fillStyle = 'rgba(255,255,255,.10)';
+    ctx.fillRect(20*dpr, barY, barW, 8*dpr);
+    const grad = ctx.createLinearGradient(20*dpr, 0, 20*dpr + barW, 0);
+    grad.addColorStop(0, '#79d9ff');
+    grad.addColorStop(0.5, '#93ffb5');
+    grad.addColorStop(1, prog > 0.7 ? '#ffe37b' : '#b7ff73');
+    ctx.fillStyle = grad;
+    ctx.fillRect(20*dpr, barY, barW*prog, 8*dpr);
+    ctx.fillStyle = `rgba(255,255,255,${0.08 + pulse*0.12})`;
+    ctx.fillRect(20*dpr, barY, barW*prog, 8*dpr);
+
+    if(!state.over){
+      ctx.fillStyle = 'rgba(255,255,255,.16)';
+      ctx.font = `${14*dpr}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.fillText('보드가 바로 활성화되어 있습니다. 드래그로 씨앗을 심어 보세요.', W/2, H - 38*dpr);
+    }
+
+    if(state.weedFlash > 0){
+      ctx.fillStyle = `rgba(130,255,150,${state.weedFlash*0.05})`;
+      ctx.fillRect(0,0,W,H);
+    }
+    if(state.harvestFlash > 0){
+      ctx.fillStyle = `rgba(255,230,130,${state.harvestFlash*0.08})`;
+      ctx.fillRect(0,0,W,H);
+    }
+    if(state.goalPulse > 0){
+      ctx.fillStyle = `rgba(255,245,180,${state.goalPulse*0.08})`;
+      ctx.fillRect(0,0,W,H);
+    }
+  }
+
+  function pointerPos(e){
+    const r = canvas.getBoundingClientRect();
+    return { x:(e.clientX - r.left), y:(e.clientY - r.top) };
+  }
+
+  function onDown(e){
+    const p = pointerPos(e);
+    dragPointer.down = true;
+    if(state.over || state.pausedUpgrade) return;
+    const c = cellAt(p.x, p.y);
+    if(c){
+      state.dragging = true;
+      state.dragPath = [c];
+      plantCell(c, true);
+      e.preventDefault();
+    }
+  }
+  function onMove(e){
+    if(!dragPointer.down || !state.dragging || state.over || state.pausedUpgrade) return;
+    const p = pointerPos(e);
+    const c = cellAt(p.x, p.y);
+    const last = state.dragPath[state.dragPath.length-1];
+    if(c && c !== last && Math.abs(c.x-last.x)+Math.abs(c.y-last.y) === 1){
+      state.dragPath.push(c);
+      plantCell(c, true);
+    }
+  }
+  function onUp(){
+    dragPointer.down = false;
+    state.dragging = false;
+    state.dragPath = [];
+    if(!state.over && !state.pausedUpgrade) ui.statusChip.textContent = '자동 진행 중';
+  }
+
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  addEventListener('pointerup', onUp);
+  addEventListener('pointercancel', onUp);
+
+  addEventListener('keydown', (e) => {
+    if(e.key === 'r' || e.key === 'R'){
+      e.preventDefault();
+      newGame();
+      return;
+    }
+    if(e.key === ' '){
+      e.preventDefault();
+      if(!state.over && !state.pausedUpgrade && state.resources >= 1){
+        state.resources -= 1;
+        state.harvestCd = 0;
+        ui.statusChip.textContent = '즉시 수확';
+      }
+    }
+  });
+
+  ui.restartBtn.onclick = () => newGame();
+  ui.restartBtn2.onclick = () => newGame();
+
+  function loop(now){
+    const dt = Math.min(0.033, (now - (loop.last || now)) / 1000);
+    loop.last = now;
+    step(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  newGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

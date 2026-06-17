@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Pulse Orbit</title>
+  <style>
+    html, body { margin:0; width:100%; height:100%; overflow:hidden; background:#060814; touch-action:none; }
+    canvas { display:block; width:100vw; height:100vh; }
+  </style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(() => {
+  const c = document.getElementById('game');
+  const g = c.getContext('2d');
+  let W=0,H=0,DPR=1, cx=0, cy=0, minDim=0;
+  const colors = ['#71e6ff','#ff7bd1','#a9ff6b'];
+  const orbitCount = 3;
+  const orbitR = [];
+  const nodes = [];
+  const waves = [];
+  const sparks = [];
+  const stars = [];
+  const beats = [];
+  const state = {
+    running:true, over:false, score:0, combo:0, heat:0, lives:3, best: +(localStorage.getItem('pulseOrbitBest')||0),
+    beatTimer:0, beatInterval:1.05, beatFlash:0, promptColor:0, dragNode:null, message:''
+  };
+  let last=0, t=0, pointer={x:0,y:0,down:false,active:false};
+
+  function resize(){
+    DPR = Math.max(1, Math.min(2, devicePixelRatio||1));
+    W = innerWidth; H = innerHeight; cx=W/2; cy=H/2; minDim=Math.min(W,H);
+    c.width = Math.floor(W*DPR); c.height = Math.floor(H*DPR);
+    g.setTransform(DPR,0,0,DPR,0,0);
+    orbitR[0]=minDim*0.16; orbitR[1]=minDim*0.26; orbitR[2]=minDim*0.36;
+  }
+  addEventListener('resize', resize);
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function dist(x1,y1,x2,y2){ return Math.hypot(x2-x1,y2-y1); }
+
+  function reset(){
+    state.running=true; state.over=false; state.score=0; state.combo=0; state.heat=0; state.lives=3;
+    state.beatTimer=0; state.beatInterval=1.05; state.beatFlash=0; state.promptColor=0; state.dragNode=null; state.message='';
+    nodes.length=0; waves.length=0; sparks.length=0; beats.length=0;
+    for(let i=0;i<14;i++) stars.push(stars[i] || {x:Math.random(), y:Math.random(), s:rand(0.5,1.8), p:Math.random()*Math.PI*2});
+    const nPer=6;
+    for(let o=0;o<orbitCount;o++){
+      for(let i=0;i<nPer;i++){
+        const a = i/nPer*Math.PI*2 + o*0.23;
+        nodes.push({orbit:o, angle:a, speed:(o===0?0.55:o===1?0.42:0.32)*(Math.random()<0.5?-1:1), color:o%3, grabbed:false, locked:false});
+      }
+    }
+    for(let i=0;i<3;i++) spawnWave(true);
+  }
+
+  function spawnWave(initial=false){
+    const o = initial ? Math.floor(Math.random()*orbitCount) : Math.min(2, Math.floor(Math.random() * (1 + Math.floor(state.score/250))));
+    const color = Math.floor(Math.random()*3);
+    const angle = Math.random()*Math.PI*2;
+    const dir = Math.random()<0.5?-1:1;
+    const speed = initial ? rand(0.6,0.95) : rand(0.85,1.45) + state.score/1000;
+    waves.push({orbit:o, color, angle, dir, speed, alive:true, hit:false, born:t});
+  }
+
+  function beat(){
+    state.beatFlash = 1;
+    state.beatTimer = 0;
+    state.promptColor = (state.promptColor + 1 + Math.floor(Math.random()*2)) % 3;
+    beats.push({r:0, a:0});
+    state.score += 5 + state.combo * 2;
+    state.combo++;
+    state.heat = Math.max(0, state.heat - 2.5);
+    if(state.combo % 4 === 0){ state.lives = Math.min(5, state.lives + 1); }
+    if(Math.random() < 0.65) spawnWave();
+    if(state.beatInterval > 0.48) state.beatInterval *= 0.992;
+  }
+
+  function misstep(kind){
+    state.combo = 0;
+    state.heat += kind==='miss' ? 18 : 26;
+    state.lives -= kind==='miss' ? 1 : 2;
+    state.message = kind==='miss' ? '리듬을 놓쳤다!' : '잘못된 색을 건드렸다!';
+    state.messageTimer = 1.0;
+    if(state.lives <= 0 || state.heat >= 100){
+      state.over = true; state.running=false;
+      state.best = Math.max(state.best, state.score);
+      localStorage.setItem('pulseOrbitBest', String(state.best));
+    }
+  }
+
+  function pointerPos(e){
+    const r = c.getBoundingClientRect();
+    return {x:(e.clientX-r.left), y:(e.clientY-r.top)};
+  }
+
+  function startDrag(x,y){
+    pointer.down=true; pointer.active=true; pointer.x=x; pointer.y=y;
+    let best=null, bd=1e9;
+    for(const n of nodes){
+      const r = orbitR[n.orbit];
+      const nx = cx + Math.cos(n.angle)*r, ny = cy + Math.sin(n.angle)*r;
+      const d = dist(x,y,nx,ny);
+      if(d < bd){ bd=d; best=n; }
+    }
+    if(best && bd < minDim*0.06){ state.dragNode=best; best.grabbed=true; }
+  }
+
+  function moveDrag(x,y){
+    pointer.x=x; pointer.y=y;
+    if(!state.dragNode) return;
+    const n=state.dragNode;
+    const dx=x-cx, dy=y-cy;
+    n.angle = Math.atan2(dy,dx);
+  }
+
+  function endDrag(){
+    pointer.down=false; pointer.active=false;
+    if(state.dragNode){ state.dragNode.grabbed=false; state.dragNode=null; }
+  }
+
+  addEventListener('mousedown', e => { const p=pointerPos(e); startDrag(p.x,p.y); });
+  addEventListener('mousemove', e => { const p=pointerPos(e); if(pointer.down) moveDrag(p.x,p.y); });
+  addEventListener('mouseup', endDrag);
+  addEventListener('touchstart', e => { const p=pointerPos(e.touches[0]); startDrag(p.x,p.y); e.preventDefault(); }, {passive:false});
+  addEventListener('touchmove', e => { const p=pointerPos(e.touches[0]); moveDrag(p.x,p.y); e.preventDefault(); }, {passive:false});
+  addEventListener('touchend', endDrag);
+
+  addEventListener('keydown', e => {
+    if(e.key==='r' || e.key==='R') reset();
+    if(state.over && e.key===' '){ reset(); }
+  });
+
+  function update(dt){
+    t += dt;
+    state.beatTimer += dt;
+    state.beatFlash = Math.max(0, state.beatFlash - dt*1.8);
+    state.heat = Math.max(0, state.heat - dt*3.2 + state.combo*0.02*dt);
+    if(!state.over && state.beatTimer >= state.beatInterval){
+      beat();
+    }
+    if(state.messageTimer>0){ state.messageTimer -= dt; if(state.messageTimer<=0) state.message=''; }
+
+    for(const n of nodes){
+      if(!n.grabbed) n.angle += n.speed * dt * (1 + state.score/1800);
+      n.angle += Math.sin(t*0.7 + n.orbit)*0.0008;
+    }
+
+    for(const w of waves){
+      if(!w.alive) continue;
+      w.angle += w.dir * w.speed * dt * 0.9;
+      const nList = nodes.filter(n => n.orbit === w.orbit);
+      for(const n of nList){
+        const da = Math.atan2(Math.sin(w.angle-n.angle), Math.cos(w.angle-n.angle));
+        if(Math.abs(da) < 0.11){
+          if(n.color === w.color && !w.hit){
+            w.hit = true; w.alive = false;
+            state.score += 20 + state.combo*3;
+            state.combo++;
+            state.heat = Math.max(0, state.heat - 8);
+            for(let i=0;i<12;i++) sparks.push({x:0,y:0,vx:0,vy:0,life:rand(0.3,0.7),c:colors[w.color]});
+          }else if(!w.hit){
+            w.hit = true; w.alive = false;
+            misstep('wrong');
+          }
+          break;
+        }
+      }
+    }
+
+    for(let i=waves.length-1;i>=0;i--){
+      const w=waves[i];
+      if(!w.alive && w.hit){ waves.splice(i,1); }
+      else if(Math.abs(w.angle) > Math.PI*4) waves.splice(i,1);
+    }
+
+    for(let i=sparks.length-1;i>=0;i--){
+      const s=sparks[i];
+      s.life -= dt;
+      if(s.life<=0) sparks.splice(i,1);
+    }
+
+    for(const b of beats){ b.r += dt*240; }
+    for(let i=beats.length-1;i>=0;i--) if(beats[i].r > minDim) beats.splice(i,1);
+
+    if(state.heat >= 100) state.over=true;
+    if(state.messageTimer===undefined) state.messageTimer=0;
+    if(!state.over && Math.random() < dt*0.08 + state.score/50000) spawnWave();
+    if(state.score >= 300 && state.best < state.score) state.best = state.score;
+  }
+
+  function draw(){
+    g.clearRect(0,0,W,H);
+    const bg = g.createRadialGradient(cx,cy,0,cx,cy,minDim*0.9);
+    bg.addColorStop(0,'#10152b'); bg.addColorStop(1,'#05060b');
+    g.fillStyle = bg; g.fillRect(0,0,W,H);
+
+    for(const s of stars){
+      const x = (s.x*W + Math.sin(t*s.s+s.p)*10)%W, y = (s.y*H + Math.cos(t*s.s+s.p)*6)%H;
+      g.fillStyle = 'rgba(255,255,255,0.6)';
+      g.fillRect((x+W)%W, (y+H)%H, s.s, s.s);
+    }
+
+    g.save();
+    g.translate(cx,cy);
+
+    for(let i=0;i<orbitCount;i++){
+      g.strokeStyle = `rgba(120,180,255,${0.12 + i*0.08})`;
+      g.lineWidth = 2;
+      g.beginPath(); g.arc(0,0,orbitR[i],0,Math.PI*2); g.stroke();
+    }
+
+    const pulse = 1 + state.beatFlash*0.08 + Math.sin(t*4)*0.01;
+    g.save();
+    g.scale(pulse,pulse);
+    const coreGlow = g.createRadialGradient(0,0,0,0,0,minDim*0.11);
+    coreGlow.addColorStop(0,'#fff7e8');
+    coreGlow.addColorStop(0.28,'#ffcf7a');
+    coreGlow.addColorStop(0.62,'#ff6b8b');
+    coreGlow.addColorStop(1,'rgba(255,107,139,0)');
+    g.fillStyle = coreGlow;
+    g.beginPath(); g.arc(0,0,minDim*0.11,0,Math.PI*2); g.fill();
+    g.restore();
+
+    for(const b of beats){
+      g.strokeStyle = `rgba(255,255,255,${Math.max(0,0.25-b.r/minDim)})`;
+      g.lineWidth = 3;
+      g.beginPath(); g.arc(0,0,b.r,0,Math.PI*2); g.stroke();
+    }
+
+    for(const w of waves){
+      const r = orbitR[w.orbit];
+      const x = Math.cos(w.angle)*r, y = Math.sin(w.angle)*r;
+      g.fillStyle = colors[w.color];
+      g.shadowColor = colors[w.color];
+      g.shadowBlur = 16;
+      g.beginPath(); g.arc(x,y, minDim*0.018, 0, Math.PI*2); g.fill();
+      g.shadowBlur = 0;
+    }
+
+    for(const n of nodes){
+      const r = orbitR[n.orbit], x=Math.cos(n.angle)*r, y=Math.sin(n.angle)*r;
+      g.fillStyle = n.grabbed ? '#ffffff' : colors[n.color];
+      g.shadowColor = colors[n.color];
+      g.shadowBlur = n.grabbed ? 26 : 12;
+      g.beginPath(); g.arc(x,y,minDim*0.022,0,Math.PI*2); g.fill();
+      g.shadowBlur = 0;
+      g.strokeStyle = 'rgba(255,255,255,0.25)';
+      g.lineWidth = 2;
+      g.beginPath(); g.arc(x,y,minDim*0.03,0,Math.PI*2); g.stroke();
+    }
+
+    g.restore();
+
+    g.fillStyle = 'rgba(255,255,255,0.95)';
+    g.font = '600 18px system-ui, sans-serif';
+    g.textAlign='left';
+    g.fillText(`점수 ${state.score}`, 18, 28);
+    g.fillText(`최고 ${state.best}`, 18, 52);
+    g.fillText(`콤보 x${state.combo}`, 18, 76);
+
+    const ringX = W-34, ringY = 90, ringR=28;
+    g.lineWidth = 10;
+    g.strokeStyle = 'rgba(255,255,255,0.1)';
+    g.beginPath(); g.arc(ringX,ringY,ringR,0,Math.PI*2); g.stroke();
+    g.strokeStyle = `hsl(${(state.promptColor*120)+180},90%,60%)`;
+    g.beginPath(); g.arc(ringX,ringY,ringR,-Math.PI/2,-Math.PI/2 + Math.PI*2*(state.beatTimer/state.beatInterval)); g.stroke();
+    g.fillStyle = colors[state.promptColor];
+    g.beginPath(); g.arc(ringX,ringY,8,0,Math.PI*2); g.fill();
+
+    const hx = 18, hy = H-28, hw = Math.min(260, W-36), hh = 14;
+    g.fillStyle = 'rgba(255,255,255,0.1)'; g.fillRect(hx,hy,hw,hh);
+    g.fillStyle = `hsl(${clamp(120-state.heat,0,120)},90%,60%)`;
+    g.fillRect(hx,hy,hw*clamp(state.heat/100,0,1),hh);
+    g.strokeStyle = 'rgba(255,255,255,0.25)'; g.strokeRect(hx,hy,hw,hh);
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.font='12px system-ui, sans-serif';
+    g.fillText('과열', hx, hy-6);
+
+    for(let i=0;i<state.lives;i++){
+      const x = W-30 - i*22, y = 26;
+      g.fillStyle = i < state.lives ? '#ff6b8b' : 'rgba(255,255,255,0.12)';
+      g.beginPath();
+      g.moveTo(x,y); g.bezierCurveTo(x-6,y-8,x-18,y-2,x-18,y+8); g.bezierCurveTo(x-18,y+18,x-6,y+24,x,y+32); g.bezierCurveTo(x+6,y+24,x+18,y+18,x+18,y+8); g.bezierCurveTo(x+18,y-2,x+6,y-8,x,y); g.fill();
+    }
+
+    g.fillStyle = 'rgba(255,255,255,0.8)';
+    g.font = '13px system-ui, sans-serif';
+    g.fillText('드래그: 노드 이동  •  같은 색 파동 맞추기  •  R 재시작', 18, H-54);
+    if(state.message) {
+      g.fillStyle = 'rgba(255,240,200,0.96)';
+      g.font = '700 18px system-ui, sans-serif';
+      g.textAlign='center';
+      g.fillText(state.message, W/2, H*0.18);
+    }
+
+    if(state.over){
+      g.fillStyle = 'rgba(0,0,0,0.58)';
+      g.fillRect(0,0,W,H);
+      g.fillStyle = '#fff';
+      g.textAlign='center';
+      g.font='800 42px system-ui, sans-serif';
+      g.fillText('코어 과열', W/2, H*0.4);
+      g.font='600 20px system-ui, sans-serif';
+      g.fillText(`점수 ${state.score}  •  최고 ${state.best}`, W/2, H*0.47);
+      g.fillText('탭/클릭 또는 Space로 재시작', W/2, H*0.54);
+    }
+  }
+
+  function loop(ts){
+    if(!last) last = ts;
+    const dt = Math.min(0.033, (ts-last)/1000);
+    last = ts;
+    if(state.running) update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  reset();
+  requestAnimationFrame(loop);
+
+  addEventListener('click', () => { if(state.over) reset(); });
+})();
+</script>
+</body>
+</html>

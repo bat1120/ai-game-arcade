@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>RADIO LOCK // Daily Frequency Puzzle</title>
+  <style>
+    :root{
+      --bg1:#050b14;
+      --bg2:#081525;
+      --panel:#0b1524e6;
+      --panel2:#11243be6;
+      --text:#e8f6ff;
+      --muted:#9ab2c8;
+      --good:#76f0b2;
+      --warn:#ffd66b;
+      --bad:#ff7070;
+      --accent:#67d9ff;
+      --accent2:#b28dff;
+      --shadow: rgba(0,0,0,.38);
+    }
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background: radial-gradient(1200px 900px at 50% 20%, #12355a 0%, var(--bg1) 44%, #020407 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:var(--text);
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action:none;
+    }
+    canvas{display:block; width:100vw; height:100vh;}
+    .hud{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px;
+      box-sizing:border-box;
+      font-weight:800;
+      text-shadow:0 2px 10px rgba(0,0,0,.55);
+    }
+    .panel{
+      background:linear-gradient(180deg, rgba(10,18,30,.82), rgba(8,14,24,.66));
+      border:1px solid rgba(150,205,235,.18);
+      box-shadow:0 12px 28px rgba(0,0,0,.28);
+      border-radius:16px;
+      padding:12px 14px;
+      backdrop-filter: blur(8px);
+    }
+    .topLeft,.topRight{
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+      min-width: 240px;
+    }
+    .row{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      font-size:15px;
+      line-height:1.2;
+    }
+    .value{color:#fff;}
+    .big{
+      font-size:18px;
+      letter-spacing:.02em;
+    }
+    .good{color:var(--good)}
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+    .centerMsg{
+      position:fixed;
+      top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      text-align:center;
+      width:min(620px, calc(100vw - 24px));
+      pointer-events:none;
+      text-shadow:0 2px 12px rgba(0,0,0,.58);
+      display:none;
+    }
+    .title{
+      font-size:34px;
+      letter-spacing:.14em;
+      margin-bottom:8px;
+      color:#f3fbff;
+    }
+    .subtitle{
+      font-size:15px;
+      color:var(--muted);
+      line-height:1.55;
+      font-weight:650;
+    }
+    .mini{
+      position:fixed;
+      left:12px;
+      bottom:12px;
+      width:min(760px, calc(100vw - 24px));
+      pointer-events:none;
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .chip{
+      background:rgba(12,20,32,.74);
+      border:1px solid rgba(150,205,235,.16);
+      border-radius:999px;
+      padding:8px 11px;
+      font-size:12px;
+      color:#deeffa;
+      backdrop-filter: blur(6px);
+      box-shadow:0 8px 20px rgba(0,0,0,.18);
+    }
+    button{
+      pointer-events:auto;
+      appearance:none;
+      border:none;
+      border-radius:12px;
+      padding:10px 14px;
+      background:linear-gradient(180deg, #1f4a71, #14334d);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 10px 22px rgba(0,0,0,.24);
+    }
+    button:active{transform:translateY(1px);}
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud">
+  <div class="topLeft panel">
+    <div class="row big"><span>주파수</span><span class="value" id="freqText">000.0 MHz</span></div>
+    <div class="row"><span>정렬</span><span class="value big" id="alignText">0%</span></div>
+    <div class="row"><span>콤보</span><span class="value big" id="comboText">x1</span></div>
+    <div class="row"><span>점수</span><span class="value big" id="scoreText">0</span></div>
+  </div>
+  <div class="topRight panel" style="text-align:right;">
+    <div class="row big"><span>턴</span><span class="value" id="turnText">0 / 0</span></div>
+    <div class="row"><span>잡음</span><span class="value big" id="noiseText">0%</span></div>
+    <div class="row"><span>오차</span><span class="value big" id="deltaText">0.00</span></div>
+    <div class="row"><span>기록</span><span class="value big" id="bestText">0</span></div>
+  </div>
+</div>
+
+<div class="centerMsg" id="msgBox">
+  <div class="title" id="msgTitle">RADIO LOCK</div>
+  <div class="subtitle" id="msgText">
+    다이얼을 좌우로 드래그해 신호를 정렬하세요.<br>
+    목표 파형의 색 / 길이 / 간격을 맞추면 클리어합니다.
+  </div>
+</div>
+
+<div class="mini">
+  <div class="chip">드래그 / ←→ : 주파수 조정</div>
+  <div class="chip">클릭 / 스페이스 : 잠깐 고정</div>
+  <div class="chip">정확히 맞출수록 콤보와 보너스가 커집니다</div>
+  <button id="restartBtn">재시작</button>
+</div>
+
+<script>
+(()=> {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const els = {
+    freqText: document.getElementById('freqText'),
+    alignText: document.getElementById('alignText'),
+    comboText: document.getElementById('comboText'),
+    turnText: document.getElementById('turnText'),
+    noiseText: document.getElementById('noiseText'),
+    deltaText: document.getElementById('deltaText'),
+    scoreText: document.getElementById('scoreText'),
+    bestText: document.getElementById('bestText'),
+    msgBox: document.getElementById('msgBox'),
+    msgTitle: document.getElementById('msgTitle'),
+    msgText: document.getElementById('msgText'),
+    restartBtn: document.getElementById('restartBtn'),
+  };
+
+  let W=0,H=0,DPR=1;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, devicePixelRatio || 1));
+    W = canvas.width = Math.floor(innerWidth * DPR);
+    H = canvas.height = Math.floor(innerHeight * DPR);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+  }
+  addEventListener('resize', resize, {passive:true});
+  resize();
+
+  const storageKey = 'radio_lock_best_v2';
+  let best = +localStorage.getItem(storageKey) || 0;
+  els.bestText.textContent = best;
+
+  const palettes = [
+    {name:'Cyan', a:'#72e7ff', b:'#2cc8ff'},
+    {name:'Violet', a:'#c79dff', b:'#8f63ff'},
+    {name:'Mint', a:'#84ffbe', b:'#33df8f'},
+    {name:'Amber', a:'#ffd46d', b:'#ffb13a'},
+    {name:'Rose', a:'#ffa1bb', b:'#ff5f8a'}
+  ];
+
+  function rng(seed){
+    let s = seed >>> 0;
+    return ()=> (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function easeOut(t){ return 1 - Math.pow(1 - clamp(t,0,1), 3); }
+  function fmtFreq(f){ return f.toFixed(1).padStart(5,'0') + ' MHz'; }
+  function roundRect(x,y,w,h,r){
+    const rr = Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+
+  const state = {
+    mode:'play',
+    t:0,
+    turn:1,
+    maxTurns:10,
+    score:0,
+    combo:1,
+    comboGlow:0,
+    freq:102.5,
+    target:null,
+    noise:0.12,
+    drift:0,
+    pointerDown:false,
+    paused:false,
+    lockTimer:0,
+    flash:0,
+    shake:0,
+    successPulse:0,
+    failPulse:0,
+    endPulse:0,
+    upgradeTurn:3,
+    upgradeChoices:null,
+    upgradeOpen:false,
+    choiceBanner:0,
+    level:1,
+    dailySeed: Math.floor(new Date().setHours(0,0,0,0) / 86400000),
+    lastScorePop:0,
+    lastDelta:999,
+    tone:0
+  };
+
+  let rand = rng(state.dailySeed);
+
+  function newTarget(){
+    const p = palettes[Math.floor(rand()*palettes.length)];
+    const baseLen = 0.42 + rand()*0.28;
+    const baseGap = 0.12 + rand()*0.20;
+    const freq = 88 + rand()*22 + Math.min(12, (state.turn-1)*1.05);
+    const phase = rand()*Math.PI*2;
+    const wiggle = 0.05 + state.turn*0.012;
+    return {
+      color:p,
+      length: baseLen + rand()*0.16,
+      spacing: baseGap + rand()*0.10,
+      freq,
+      phase,
+      wiggle
+    };
+  }
+
+  const perks = [
+    {
+      id:'stabilizer',
+      title:'필터 강화',
+      desc:'잡음 증가 속도를 낮추고 정렬 허용 범위를 약간 넓힙니다.',
+      apply(){ state.noiseBuff = (state.noiseBuff||0) + 0.26; state.tightness = (state.tightness||0) + 0.14; }
+    },
+    {
+      id:'clarity',
+      title:'신호 증폭',
+      desc:'정확히 맞출 때 콤보 보너스와 점수 상승이 더 강해집니다.',
+      apply(){ state.comboBoost = (state.comboBoost||0) + 0.35; state.perfectBonus = (state.perfectBonus||0) + 0.22; }
+    },
+    {
+      id:'reserve',
+      title:'전원 예비',
+      desc:'턴 제한을 1회 늘리고 실패 직전의 여유를 확보합니다.',
+      apply(){ state.maxTurns += 1; state.extraLife = (state.extraLife||0) + 1; }
+    }
+  ];
+
+  function buildUpgradeChoices(){
+    const pool = [...perks].sort(()=>rand()-0.5).slice(0,3);
+    state.upgradeChoices = pool;
+  }
+
+  function showMessage(title, text, time=1200){
+    els.msgTitle.textContent = title;
+    els.msgText.innerHTML = text;
+    els.msgBox.style.display = 'block';
+    clearTimeout(showMessage._t);
+    showMessage._t = setTimeout(()=>{
+      if(state.mode === 'play' && !state.upgradeOpen) els.msgBox.style.display = 'none';
+    }, time);
+  }
+
+  function playTone(kind){
+    try{
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if(!AudioCtx) return;
+      if(!playTone.ctx) playTone.ctx = new AudioCtx();
+      const ac = playTone.ctx;
+      if(ac.state === 'suspended') ac.resume();
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      const t = ac.currentTime;
+      o.connect(g); g.connect(ac.destination);
+      if(kind === 'perfect'){
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(880, t);
+        o.frequency.exponentialRampToValueAtTime(1320, t + 0.12);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.14, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      } else if(kind === 'success'){
+        o.type = 'sine';
+        o.frequency.setValueAtTime(520, t);
+        o.frequency.exponentialRampToValueAtTime(760, t + 0.08);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.10, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      } else if(kind === 'fail'){
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, t);
+        o.frequency.exponentialRampToValueAtTime(90, t + 0.22);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.30);
+      }
+      o.start(t); o.stop(t + 0.35);
+    }catch(e){}
+  }
+
+  function startTurn(){
+    state.target = newTarget();
+    state.noise = clamp(0.10 + state.turn*0.03 - (state.noiseBuff||0), 0.08, 0.42);
+    state.drift = (rand()*2-1) * (0.05 + state.turn*0.012);
+    state.lockTimer = 0;
+    state.flash = 0;
+    state.shake = 0;
+    state.successPulse = 0;
+    state.lastDelta = 999;
+    state.tone = 0;
+    state.freq = clamp(state.target.freq + (rand()*2-1) * (10 - Math.min(5, state.turn*0.4)), 80, 120);
+    if(state.turn === 1) showMessage('데일리 퍼즐 시작', '좌우로 드래그해 파형을 맞추세요. 첫 턴은 관대합니다.', 1400);
+    if(state.turn === state.upgradeTurn && !state.upgradeOpen){
+      openUpgrade();
+    }
+  }
+
+  function resetGame(){
+    rand = rng(state.dailySeed);
+    state.mode='play';
+    state.t=0;
+    state.turn=1;
+    state.maxTurns=10;
+    state.score=0;
+    state.combo=1;
+    state.comboGlow=0;
+    state.freq=102.5;
+    state.noiseBuff=0;
+    state.tightness=0;
+    state.comboBoost=0;
+    state.perfectBonus=0;
+    state.extraLife=0;
+    state.lockTimer=0;
+    state.upgradeOpen=false;
+    state.choiceBanner=0;
+    state.endPulse=0;
+    els.msgBox.style.display='none';
+    startTurn();
+  }
+
+  function openUpgrade(){
+    if(state.upgradeOpen) return;
+    state.upgradeOpen = true;
+    buildUpgradeChoices();
+    els.msgBox.style.display = 'block';
+    els.msgTitle.textContent = '신호 보정 선택';
+    els.msgText.innerHTML = '연속 수신 안정화에 성공했습니다. 아래 3가지 중 하나를 선택하세요.';
+    const extra = document.createElement('div');
+    extra.id = 'upgradeBox';
+    extra.style.cssText = 'display:flex; gap:10px; justify-content:center; margin-top:14px; flex-wrap:wrap; pointer-events:auto;';
+    state.upgradeChoices.forEach((p, idx)=>{
+      const b = document.createElement('button');
+      b.textContent = `${idx+1}. ${p.title}`;
+      b.title = p.desc;
+      b.onclick = ()=>{
+        p.apply();
+        state.score += 120 + state.turn*20;
+        state.combo += 1;
+        state.comboGlow = 1;
+        state.upgradeOpen = false;
+        state.turn += 1;
+        els.msgBox.style.display = 'none';
+        extra.remove();
+        showMessage('업그레이드 적용', p.desc, 1100);
+        if(state.turn > state.maxTurns){ endGame(true); return; }
+        startTurn();
+      };
+      extra.appendChild(b);
+    });
+    const old = document.getElementById('upgradeBox');
+    if(old) old.remove();
+    els.msgBox.appendChild(extra);
+  }
+
+  function scoreGain(delta, perfect){
+    const accuracy = clamp(1 - delta/3.8, 0, 1);
+    const comboPower = 1 + (state.combo-1)*0.34 + (state.comboBoost||0);
+    const perfectPower = perfect ? 1.55 + (state.perfectBonus||0) : 1;
+    return Math.max(8, Math.floor((130 * accuracy * accuracy + 18) * comboPower * perfectPower));
+  }
+
+  function applyFailure(delta){
+    state.combo = 1;
+    state.comboGlow = 0;
+    state.score = Math.max(0, state.score - Math.floor(18 + delta*6));
+    state.shake = 1;
+    state.failPulse = 1;
+    playTone('fail');
+    showMessage('신호 이탈', `오차 <b>${delta.toFixed(2)} MHz</b> · 더 가깝게 조정하세요.`, 1100);
+  }
+
+  function resolveTurn(){
+    if(state.mode !== 'play' || state.upgradeOpen) return;
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.3, 0, 1);
+    const perfect = delta < 0.7;
+    state.lastDelta = delta;
+    if(delta < 3.0){
+      const gain = scoreGain(delta, perfect);
+      state.score += gain;
+      state.combo += perfect ? 2 : 1;
+      state.comboGlow = 1;
+      state.flash = 1;
+      state.successPulse = 1;
+      state.lockTimer = 0;
+      playTone(perfect ? 'perfect' : 'success');
+      showMessage(perfect ? '완벽 동기화!' : '신호 고정!', `오차 <b>${delta.toFixed(2)} MHz</b> · <b>+${gain}</b> 점수`, 900);
+      state.turn += 1;
+      if(state.turn > state.maxTurns){
+        endGame(true);
+        return;
+      }
+      if(state.turn === state.upgradeTurn && !state.upgradeOpen){
+        openUpgrade();
+        return;
+      }
+      startTurn();
+    }else{
+      applyFailure(delta);
+    }
+  }
+
+  function endGame(win){
+    state.mode = 'over';
+    state.endPulse = 1;
+    els.msgBox.style.display = 'block';
+    const summary = win
+      ? `모든 주파수를 안정적으로 고정했습니다.<br>최종 점수 <b>${state.score}</b> · 최고 콤보 <b>x${state.combo}</b><br>R 키 또는 버튼으로 다시 도전하세요.`
+      : `신호가 끊겼습니다.<br>최종 점수 <b>${state.score}</b> · 최고 기록 <b>${best}</b><br>R 키 또는 버튼으로 즉시 재시작하세요.`;
+    els.msgTitle.textContent = win ? '클리어!' : '신호 소실';
+    els.msgText.innerHTML = summary;
+    if(state.score > best){
+      best = state.score;
+      localStorage.setItem(storageKey, best);
+      els.bestText.textContent = best;
+    }
+    playTone(win ? 'success' : 'fail');
+  }
+
+  function inputFreqFromPointer(x){
+    const minF = 80, maxF = 120;
+    const px = clamp(x / innerWidth, 0, 1);
+    state.freq = lerp(minF, maxF, px);
+  }
+
+  addEventListener('pointerdown', e=>{
+    if(state.mode === 'over') return;
+    state.pointerDown = true;
+    if(state.mode === 'play' && !state.upgradeOpen){
+      inputFreqFromPointer(e.clientX);
+      resolveTurn();
+    }
+    if(state.mode === 'play' && state.upgradeOpen){
+      const rect = canvas.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      if(y < H * 0.5) return;
+    }
+  });
+  addEventListener('pointermove', e=>{
+    if(!state.pointerDown || state.mode !== 'play' || state.upgradeOpen) return;
+    inputFreqFromPointer(e.clientX);
+  });
+  addEventListener('pointerup', ()=> state.pointerDown=false);
+  addEventListener('pointercancel', ()=> state.pointerDown=false);
+
+  addEventListener('keydown', e=>{
+    if(e.key === 'r' || e.key === 'R'){ resetGame(); return; }
+    if(state.mode !== 'play') return;
+    if(e.key === ' '){
+      e.preventDefault();
+      state.paused = !state.paused;
+      if(state.paused) showMessage('잠시 정지', '다시 스페이스를 누르면 계속됩니다.', 1100);
+      else els.msgBox.style.display = 'none';
+      return;
+    }
+    if(state.upgradeOpen){
+      const idx = ({'1':0,'2':1,'3':2}[e.key]);
+      if(idx !== undefined && state.upgradeChoices[idx]){
+        state.upgradeChoices[idx].apply();
+        state.score += 120 + state.turn*20;
+        state.combo += 1;
+        state.comboGlow = 1;
+        state.upgradeOpen = false;
+        state.turn += 1;
+        els.msgBox.style.display = 'none';
+        showMessage('업그레이드 적용', state.upgradeChoices[idx].desc, 1000);
+        if(state.turn > state.maxTurns){ endGame(true); return; }
+        startTurn();
+      }
+      return;
+    }
+    if(e.key === 'ArrowLeft') state.freq -= 0.35;
+    if(e.key === 'ArrowRight') state.freq += 0.35;
+    state.freq = clamp(state.freq, 80, 120);
+  });
+
+  els.restartBtn.onclick = resetGame;
+
+  function drawBackground(time){
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0b1a2c');
+    g.addColorStop(1,'#02050a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+
+    const cx=W/2, cy=H*0.43;
+    const rg = ctx.createRadialGradient(cx, cy, 20, cx, cy, Math.max(W,H)*0.72);
+    rg.addColorStop(0, 'rgba(90,200,255,0.13)');
+    rg.addColorStop(0.33, 'rgba(100,120,220,0.07)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = '#79bfff';
+    ctx.lineWidth = 1 * DPR;
+    for(let y=0;y<H;y+=28*DPR){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+    for(let x=0;x<W;x+=40*DPR){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function waveformPath(x,y,w,h,phase,length,spacing,color,alpha,noiseAmt){
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3 * DPR;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20 * DPR;
+    ctx.beginPath();
+    const n = 200;
+    for(let i=0;i<=n;i++){
+      const t = i/n;
+      const px = t*w;
+      const wave = Math.sin((t*length*Math.PI*2) + phase) * Math.sin(t*Math.PI*spacing*6 + phase*0.3);
+      const jitter = (Math.sin((t*23+phase)*7) + Math.sin((t*71-phase)*2))*0.5;
+      const py = h*0.5 + wave*h*0.30 + jitter*h*noiseAmt*0.10;
+      if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawComparison(cx, cy, bandW, bandH, dt, time){
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.5, 0, 1);
+    const targetX = cx - bandW*0.22;
+    const targetW = bandW*0.44;
+    const targetH = 76*DPR;
+    const currentColor = align > 0.72 ? '#eafcff' : (delta > 6 ? '#ff9aa4' : '#9ee2ff');
+    waveformPath(targetX, cy-30*DPR, targetW, targetH, target.phase, target.length*8, target.spacing*6, target.color.a, 0.98, 0.05);
+    waveformPath(targetX, cy-30*DPR, targetW, targetH, (state.t*2.0) + state.freq*0.05, (state.freq/100)*target.length*8, target.spacing*6, currentColor, 0.90, state.noise + (1-align)*0.46);
+
+    const d = clamp(delta/6, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = d < 0.35 ? 'rgba(118,240,178,0.95)' : `rgba(255,120,120,${0.25 + d*0.55})`;
+    ctx.lineWidth = 2.2*DPR;
+    ctx.setLineDash([10*DPR, 10*DPR]);
+    ctx.beginPath();
+    ctx.moveTo(targetX, cy+22*DPR);
+    ctx.lineTo(targetX + targetW, cy+22*DPR);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    const errX = cx + bandW*0.24;
+    const errY = cy - 42*DPR;
+    const errBoxW = 170*DPR, errBoxH = 84*DPR;
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,12,20,0.72)';
+    roundRect(errX-errBoxW/2, errY, errBoxW, errBoxH, 14*DPR); ctx.fill();
+    ctx.strokeStyle = d < 0.35 ? 'rgba(118,240,178,0.55)' : 'rgba(255,112,112,0.58)';
+    ctx.lineWidth = 1.2*DPR; ctx.stroke();
+    ctx.fillStyle = '#eaf8ff';
+    ctx.font = `${13*DPR}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillText('오차 하이라이트', errX, errY + 24*DPR);
+    ctx.font = `${28*DPR}px system-ui`;
+    ctx.fillStyle = d < 0.35 ? '#79f0b2' : '#ff7373';
+    ctx.fillText(delta.toFixed(2), errX, errY + 56*DPR);
+    ctx.font = `${12*DPR}px system-ui`;
+    ctx.fillStyle = 'rgba(220,240,255,0.76)';
+    ctx.fillText('MHz', errX, errY + 73*DPR);
+    ctx.restore();
+  }
+
+  function drawDial(cx, cy, r, time){
+    const minF = 80, maxF = 120;
+    const norm = (state.freq - minF) / (maxF - minF);
+    const ang = lerp(-2.35, 2.35, norm);
+    ctx.save();
+    ctx.translate(cx,cy);
+    ctx.fillStyle = 'rgba(8,14,22,0.94)';
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = 'rgba(130,190,230,0.22)'; ctx.lineWidth = 2*DPR; ctx.stroke();
+
+    ctx.rotate(ang);
+    ctx.strokeStyle = '#7fe7ff';
+    ctx.lineWidth = 6*DPR;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.18, 0);
+    ctx.lineTo(r*0.72, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#effcff';
+    ctx.beginPath(); ctx.arc(r*0.74,0,8*DPR,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(235,248,255,0.95)';
+    ctx.font = `${14*DPR}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillText('주파수 다이얼', cx, cy + r + 28*DPR);
+    ctx.font = `${12*DPR}px system-ui`;
+    ctx.fillStyle = 'rgba(200,225,240,0.72)';
+    ctx.fillText('좌/우로 드래그', cx, cy + r + 46*DPR);
+    ctx.restore();
+  }
+
+  function drawGauge(cx, cy, w, h){
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.3, 0, 1);
+    const noise = clamp(state.noise + (1-align)*0.18, 0, 1);
+    ctx.save();
+    ctx.fillStyle = 'rgba(7,12,20,0.82)';
+    roundRect(cx-w/2, cy, w, h, 999); ctx.fill();
+    ctx.fillStyle = `rgba(120,190,255,${0.12 + noise*0.18})`;
+    roundRect(cx-w/2, cy, w*noise, h, 999); ctx.fill();
+    const fg = ctx.createLinearGradient(cx-w/2,0,cx+w/2,0);
+    fg.addColorStop(0,'#ff6f6f');
+    fg.addColorStop(0.52,'#ffd56a');
+    fg.addColorStop(1,'#76f0b2');
+    ctx.fillStyle = fg;
+    roundRect(cx-w/2, cy, w*align, h, 999); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1*DPR; ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = '#f0fbff';
+    ctx.font = `${13*DPR}px system-ui`;
+    ctx.textAlign = 'left';
+    ctx.fillText('정렬 게이지', cx-w/2, cy - 9*DPR);
+    ctx.textAlign = 'right';
+    ctx.fillText('잡음 레벨', cx+w/2, cy - 9*DPR);
+    ctx.restore();
+
+    const markerX = cx - w/2 + w*align;
+    ctx.save();
+    ctx.strokeStyle = align > 0.92 ? '#76f0b2' : '#f9d16b';
+    ctx.lineWidth = 3*DPR;
+    ctx.beginPath();
+    ctx.moveTo(markerX, cy-8*DPR);
+    ctx.lineTo(markerX, cy+h+8*DPR);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTurnChips(x, y, w){
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.5, 0, 1);
+    const chipH = 42*DPR;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,15,24,0.80)';
+    roundRect(x, y, w, chipH, 14*DPR); ctx.fill();
+    ctx.fillStyle = align > 0.85 ? 'rgba(118,240,178,0.16)' : 'rgba(255,112,112,0.10)';
+    roundRect(x, y, w*align, chipH, 14*DPR); ctx.fill();
+    ctx.fillStyle = '#eaf8ff';
+    ctx.font = `${13*DPR}px system-ui`;
+    ctx.textAlign = 'left';
+    ctx.fillText(`목표: ${target.color.name} / 길이 ${Math.round(target.length*100)} / 간격 ${Math.round(target.spacing*100)} / ${target.freq.toFixed(1)} MHz`, x+12*DPR, y+26*DPR);
+    ctx.restore();
+  }
+
+  function drawNoiseBars(x,y, count, time){
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const boost = clamp(state.noise + delta*0.02, 0, 0.95);
+    for(let i=0;i<count;i++){
+      const hh = (Math.sin(time*0.008 + i*0.65) * 0.5 + 0.5) * (22 + boost*82) * DPR;
+      ctx.fillStyle = `rgba(120,190,255,${0.08 + boost*0.24})`;
+      ctx.fillRect(x + i*(10*DPR), y + 70*DPR - hh, 5*DPR, hh);
+    }
+  }
+
+  function updateHud(){
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.5, 0, 1);
+    state.lastDelta = delta;
+    els.freqText.textContent = fmtFreq(state.freq);
+    els.alignText.textContent = Math.round(align*100) + '%';
+    els.comboText.textContent = 'x' + state.combo;
+    els.turnText.textContent = Math.min(state.turn, state.maxTurns) + ' / ' + state.maxTurns;
+    els.noiseText.textContent = Math.round((state.noise*100)) + '%';
+    els.deltaText.textContent = delta.toFixed(2) + ' MHz';
+    els.scoreText.textContent = state.score;
+    els.bestText.textContent = best;
+  }
+
+  function drawOverlay(status){
+    if(state.mode === 'over' || state.upgradeOpen){
+      const alpha = state.mode === 'over' ? state.endPulse : state.choiceBanner;
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${0.18 + alpha*0.12})`;
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+    if(state.mode === 'play' && state.pointerDown){
+      ctx.save();
+      ctx.fillStyle = 'rgba(118,240,178,0.06)';
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+  }
+
+  function draw(now){
+    drawBackground(now*0.001);
+
+    const target = state.target;
+    const delta = Math.abs(state.freq - target.freq);
+    const align = clamp(1 - delta/4.5, 0, 1);
+    const shake = state.shake > 0 ? (Math.sin(now*0.05)*8 + Math.sin(now*0.11)*4) * state.shake : 0;
+    ctx.save();
+    ctx.translate(shake*DPR, shake*0.35*DPR);
+
+    const cx = W*0.5;
+    const cy = H*0.45;
+    const bandW = Math.min(W*0.84, 940*DPR);
+    const bandH = 190*DPR;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,14,23,0.72)';
+    roundRect(cx-bandW/2, cy-bandH/2, bandW, bandH, 24*DPR); ctx.fill();
+    ctx.strokeStyle = 'rgba(145,205,240,0.18)';
+    ctx.lineWidth = 1.2*DPR; ctx.stroke();
+    ctx.restore();
+
+    drawNoiseBars(cx-bandW/2 + 18*DPR, cy-bandH/2 + 10*DPR, 18, now);
+    drawComparison(cx, cy, bandW, bandH, 0, now);
+
+    drawDial(cx, H*0.76, Math.min(W,H)*0.16, now);
+
+    drawGauge(cx, H*0.83, Math.min(W*0.76, 930*DPR), 22*DPR);
+    drawTurnChips(cx-bandW/2 + 18*DPR, cy+96*DPR, bandW - 36*DPR);
+
+    if(state.comboGlow > 0){
+      ctx.save();
+      ctx.globalAlpha = state.comboGlow * 0.22;
+      ctx.fillStyle = '#76f0b2';
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+    if(state.flash > 0){
+      ctx.save();
+      ctx.globalAlpha = state.flash * 0.18;
+      ctx.fillStyle = '#76f0b2';
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+    if(state.failPulse > 0){
+      ctx.save();
+      ctx.globalAlpha = state.failPulse * 0.12;
+      ctx.fillStyle = '#ff7070';
+      ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+
+    if(state.upgradeOpen){
+      ctx.save();
+      ctx.fillStyle = 'rgba(6,10,16,0.68)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#f1fbff';
+      ctx.textAlign = 'center';
+      ctx.font = `${20*DPR}px system-ui`;
+      ctx.fillText('보정 선택: 1 / 2 / 3', cx, H*0.60);
+      ctx.font = `${13*DPR}px system-ui`;
+      ctx.fillStyle = 'rgba(220,240,255,0.8)';
+      const choices = state.upgradeChoices || [];
+      choices.forEach((p, i)=>{
+        const yy = H*0.63 + i*46*DPR;
+        ctx.fillText(`${i+1}. ${p.title} — ${p.desc}`, cx, yy);
+      });
+      ctx.restore();
+    }
+
+    if(state.mode === 'over'){
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.font = `${18*DPR}px system-ui`;
+      ctx.fillText('R 키 또는 재시작 버튼으로 다시 도전', cx, H*0.90);
+      ctx.restore();
+    }
+
+    ctx.restore();
+    drawOverlay();
+
+    updateHud();
+
+    if(state.mode === 'play' && !state.paused && !state.upgradeOpen){
+      const target = state.target;
+      const deltaNow = Math.abs(state.freq - target.freq);
+      const tight = state.tightness || 0;
+      state.noise = lerp(state.noise, clamp(0.09 + state.turn*0.03 - (state.noiseBuff||0) + (1-align)*0.16 + tight*0.02, 0.05, 0.52), 0.03);
+      if(deltaNow < 0.55) state.lockTimer += dtFrame;
+      else state.lockTimer = Math.max(0, state.lockTimer - dtFrame*0.85);
+      if(state.lockTimer > 1.05) resolveTurn();
+      if(state.comboGlow > 0) state.comboGlow = Math.max(0, state.comboGlow - dtFrame*1.8);
+      if(state.flash > 0) state.flash = Math.max(0, state.flash - dtFrame*2.6);
+      if(state.successPulse > 0) state.successPulse = Math.max(0, state.successPulse - dtFrame*1.8);
+      if(state.failPulse > 0) state.failPulse = Math.max(0, state.failPulse - dtFrame*1.6);
+      if(state.shake > 0) state.shake = Math.max(0, state.shake - dtFrame*2.2);
+      state.freq += state.drift * dtFrame * 10;
+      state.freq = clamp(state.freq, 80, 120);
+      if(!state.pointerDown) state.freq += Math.sin(state.t*0.7) * 0.006;
+      if(state.turn === 2 && state.t > 7 && !state.upgradeOpen && state.maxTurns < 11) state.maxTurns = 11;
+      if(state.turn >= state.maxTurns && deltaNow > 8.2 && state.lockTimer <= 0 && state.t > 5){
+        state.score = Math.max(0, state.score - 3);
+      }
+    }
+
+    if(state.mode === 'over' || state.upgradeOpen) state.endPulse = Math.max(0, state.endPulse - dtFrame*0.7);
+    requestAnimationFrame(draw);
+  }
+
+  let last = performance.now();
+  let dtFrame = 0.016;
+  function loop(now){
+    dtFrame = Math.min(0.033, (now-last)/1000);
+    last = now;
+    state.t += dtFrame;
+
+    if(state.mode === 'play' && !state.paused && !state.upgradeOpen){
+      state.freq += state.drift * dtFrame * 10;
+      state.freq = clamp(state.freq, 80, 120);
+      if(!state.pointerDown) state.freq += Math.sin(state.t*0.7) * 0.006;
+      const delta = Math.abs(state.freq - state.target.freq);
+      const align = clamp(1 - delta/4.5, 0, 1);
+      state.noise = lerp(state.noise, clamp(0.10 + state.turn*0.03 - (state.noiseBuff||0) + (1-align)*0.18, 0.06, 0.55), 0.03);
+      if(delta < 0.55) state.lockTimer += dtFrame;
+      else state.lockTimer = Math.max(0, state.lockTimer - dtFrame*0.85);
+      if(state.lockTimer > 1.05) resolveTurn();
+      if(state.comboGlow > 0) state.comboGlow = Math.max(0, state.comboGlow - dtFrame*1.8);
+      if(state.flash > 0) state.flash = Math.max(0, state.flash - dtFrame*2.6);
+      if(state.successPulse > 0) state.successPulse = Math.max(0, state.successPulse - dtFrame*1.8);
+      if(state.failPulse > 0) state.failPulse = Math.max(0, state.failPulse - dtFrame*1.6);
+      if(state.shake > 0) state.shake = Math.max(0, state.shake - dtFrame*2.2);
+    }
+    if(state.mode === 'over') state.endPulse = Math.max(0, state.endPulse - dtFrame*0.7);
+    if(state.upgradeOpen) state.choiceBanner = Math.min(1, state.choiceBanner + dtFrame*2.5);
+    else state.choiceBanner = Math.max(0, state.choiceBanner - dtFrame*3);
+
+    draw(now);
+    requestAnimationFrame(loop);
+  }
+
+  addEventListener('pointermove', e=>{
+    if(!state.pointerDown || state.mode !== 'play' || state.upgradeOpen) return;
+    inputFreqFromPointer(e.clientX);
+  });
+  addEventListener('pointerdown', e=>{
+    if(state.mode === 'over') return;
+    state.pointerDown = true;
+    if(state.mode === 'play' && !state.upgradeOpen){
+      inputFreqFromPointer(e.clientX);
+      resolveTurn();
+    }
+  });
+  addEventListener('pointerup', ()=> state.pointerDown=false);
+  addEventListener('pointercancel', ()=> state.pointerDown=false);
+
+  function inputFreqFromPointer(x){
+    const minF = 80, maxF = 120;
+    const px = clamp(x / innerWidth, 0, 1);
+    state.freq = lerp(minF, maxF, px);
+  }
+
+  addEventListener('keydown', e=>{
+    if(e.key === 'r' || e.key === 'R'){ resetGame(); return; }
+    if(state.mode !== 'play') return;
+    if(state.upgradeOpen){
+      const idx = ({'1':0,'2':1,'3':2}[e.key]);
+      if(idx !== undefined && state.upgradeChoices && state.upgradeChoices[idx]){
+        state.upgradeChoices[idx].apply();
+        state.score += 120 + state.turn*20;
+        state.combo += 1;
+        state.comboGlow = 1;
+        state.upgradeOpen = false;
+        state.turn += 1;
+        els.msgBox.style.display = 'none';
+        showMessage('업그레이드 적용', state.upgradeChoices[idx].desc, 1000);
+        if(state.turn > state.maxTurns){ endGame(true); return; }
+        startTurn();
+      }
+      return;
+    }
+    if(e.key === ' '){
+      e.preventDefault();
+      state.paused = !state.paused;
+      if(state.paused) showMessage('잠시 정지', '다시 스페이스를 누르면 계속됩니다.', 1100);
+      else els.msgBox.style.display = 'none';
+      return;
+    }
+    if(e.key === 'ArrowLeft') state.freq -= 0.35;
+    if(e.key === 'ArrowRight') state.freq += 0.35;
+    state.freq = clamp(state.freq, 80, 120);
+  });
+
+  els.restartBtn.onclick = resetGame;
+
+  function openInitialHint(){
+    showMessage('데일리 퍼즐', '색 / 길이 / 간격을 비교해 신호를 맞추세요.<br>정확할수록 콤보가 커지고, 3턴째에 업그레이드 선택이 열립니다.', 1800);
+  }
+
+  function startGame(){
+    resetGame();
+    openInitialHint();
+  }
+
+  startGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,11 @@
 [
   {
+    "slug": "chime-loop",
+    "title": "CHIME LOOP",
+    "score": 86,
+    "fun": 64
+  },
+  {
     "slug": "daily-lantern-grid",
     "title": "LANTERN GRID",
     "score": 86,
@@ -24,6 +30,12 @@
     "fun": 58
   },
   {
+    "slug": "glow-bloom-raid",
+    "title": "GLOW BLOOM",
+    "score": 80,
+    "fun": 63
+  },
+  {
     "slug": "idle-forge",
     "title": "IDLE FORGE",
     "score": 88,
@@ -34,6 +46,12 @@
     "title": "MERGE 2048",
     "score": 84,
     "fun": 54
+  },
+  {
+    "slug": "midnight-signal",
+    "title": "MIDNIGHT SIGNAL",
+    "score": 84,
+    "fun": 66
   },
   {
     "slug": "moss-clock",
